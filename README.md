@@ -35,7 +35,7 @@ A feature-rich Discord bot that generates ASCII art, plays games, and provides A
 - Node.js 16+
 - MySQL database
 - Discord bot token
-- LLM API key (Groq recommended)
+- LLM API key (Groq recommended) or local LLM setup
 
 ### Installation
 ```bash
@@ -48,13 +48,27 @@ npm install
 Copy `.env.example` to `.env` and configure:
 
 ```env
-# Required
+# Discord Bot Token (REQUIRED)
 DISCORD_TOKEN=your_bot_token_here
+
+# LLM Configuration (REQUIRED)
+# Supported providers: groq, openai, lmstudio, ollama
 LLM_PROVIDER=groq
 MODEL=llama3-70b-8192
+
+# Provider-specific API Keys
+# For Groq (recommended)
 GROQ_API_KEY=your_groq_api_key_here
 
-# Database (required for Balatro)
+# For OpenAI
+# OPENAI_API_KEY=your_openai_key_here
+
+# For local models (lmstudio/ollama) - requires LLM_URL
+# LLM_URL=http://localhost:1234/v1  # LM Studio
+# LLM_URL=http://localhost:11434/v1 # Ollama
+
+# Database Configuration (REQUIRED)
+# Used for Balatro, currency system, and per-server config
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=admin
@@ -97,6 +111,12 @@ npm start
 - `!rimshot` - Ba-dum-tss!
 - `!cowsay embed` - Test ASCII card display
 
+### Rivals System
+- `!cowsay rival add @user <description>` - Add a rival bot
+- `!cowsay rival remove @user` - Remove a rival
+- `!cowsay rival list` - Show all rivals
+- `!cowsay help rivals` - Learn about rivals
+
 ### Games
 - `!cowsay games` - View all available games
 - `!cowsay play <game>` - Start a game
@@ -113,9 +133,9 @@ npm start
 ### Utilities
 - `!characters` - Browse ASCII characters
 - `!cowsay help` - Show all commands
-- `!showconfig` - View bot configuration
-- `!toggleautoreply` - Toggle auto-reply
-- `!toggleintent` - Cycle intent detection modes
+- `!showconfig` - View bot configuration (per-server)
+- `!toggleautoreply` - Toggle auto-reply (per-server)
+- `!toggleintent` - Cycle intent detection modes (per-server)
 
 ## Game Details
 
