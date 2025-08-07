@@ -1,5 +1,10 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require("discord.js");
+const {
+    Client,
+    GatewayIntentBits,
+    SlashCommandBuilder,
+    MessageFlags,
+} = require("discord.js");
 const cowsay = require("cowsay");
 const llmProvider = require("./modules/llmProvider");
 const LLMService = require("./modules/llmService");
@@ -8,7 +13,8 @@ const Logger = require("./modules/logger");
 const rateLimiter = require("./modules/rateLimiter");
 const autoReply = require("./modules/autoReply");
 const IntentDetector = require("./modules/intentDetector");
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder } = require("discord.js");
+const cardRenderer = require("./modules/cardRenderer");
 
 // Import all modules at the top to avoid lazy loading
 const characterManager = require("./modules/characterManager");
@@ -38,42 +44,50 @@ const client = new Client({
 client.once("ready", async () => {
     Logger.info(`Bot logged in as ${client.user.tag}`);
     Logger.info(`Bot is in ${client.guilds.cache.size} guilds`);
-    client.guilds.cache.forEach(guild => {
-        Logger.info(`Guild: ${guild.name} (${guild.id}) - ${guild.memberCount} members`);
+    client.guilds.cache.forEach((guild) => {
+        Logger.info(
+            `Guild: ${guild.name} (${guild.id}) - ${guild.memberCount} members`
+        );
     });
-    
+
     client.user.setPresence({
         activities: [{ name: "with ASCII cows 🐄", type: 0 }],
         status: "online",
     });
 
     // Initialize database
-    const database = require('./modules/database');
+    const database = require("./modules/database");
     await database.init();
 
     // Load active games from database
-    const balatro = require('./modules/games/balatro');
+    const balatro = require("./modules/games/balatro");
     await balatro.loadAllActiveGames();
 
     // Set client reference for battleship game
-    const battleship = require('./modules/games/battleship');
+    const battleship = require("./modules/games/battleship");
     battleship.setClient(client);
 
     // Register slash commands
     const commands = [
         new SlashCommandBuilder()
-            .setName('battleship')
-            .setDescription('Create a new battleship game'),
+            .setName("battleship")
+            .setDescription("Create a new battleship game"),
         new SlashCommandBuilder()
-            .setName('balatro')
-            .setDescription('Start a poker-based scoring game')
+            .setName("balatro")
+            .setDescription("Start a poker-based scoring game"),
     ];
-    
+
+    console.log(cardRenderer.renderBack());
+
     try {
         const data = await client.application.commands.set(commands);
-        Logger.info(`Registered ${data.size} slash commands: ${data.map(cmd => cmd.name).join(', ')}`);
+        Logger.info(
+            `Registered ${data.size} slash commands: ${data
+                .map((cmd) => cmd.name)
+                .join(", ")}`
+        );
     } catch (error) {
-        Logger.error('Failed to register slash commands', error.message);
+        Logger.error("Failed to register slash commands", error.message);
     }
 
     // Clean up old data every hour
@@ -84,12 +98,10 @@ client.once("ready", async () => {
             contextManager.cleanupAll();
             rateLimiter.cleanup();
         } catch (error) {
-            Logger.error('Cleanup error', error.message);
+            Logger.error("Cleanup error", error.message);
         }
     }, 60 * 60 * 1000);
 });
-
-
 
 // Initialize handlers
 const llmService = new LLMService(llmProvider);
@@ -100,60 +112,76 @@ const leaderboardHandler = new LeaderboardHandler(llmProvider, toolManager);
 const intentDetector = new IntentDetector();
 
 // Handle interactions (slash commands and buttons)
-client.on('interactionCreate', async (interaction) => {
+client.on("interactionCreate", async (interaction) => {
     if (interaction.isCommand()) {
-        Logger.info('Command received', { command: interaction.commandName, user: interaction.user.username });
-        if (interaction.commandName === 'battleship') {
-            Logger.info('Battleship slash command received', { user: interaction.user.username });
-            const result = await gameManager.startGame(interaction, "battleship");
+        Logger.info("Command received", {
+            command: interaction.commandName,
+            user: interaction.user.username,
+        });
+        if (interaction.commandName === "battleship") {
+            Logger.info("Battleship slash command received", {
+                user: interaction.user.username,
+            });
+            const result = await gameManager.startGame(
+                interaction,
+                "battleship"
+            );
             if (!result) {
-                Logger.error('Failed to start battleship game');
-                await interaction.reply({ content: "Failed to start battleship game!", flags: MessageFlags.Ephemeral });
+                Logger.error("Failed to start battleship game");
+                await interaction.reply({
+                    content: "Failed to start battleship game!",
+                    flags: MessageFlags.Ephemeral,
+                });
             }
-        } else if (interaction.commandName === 'balatro') {
-            Logger.info('Balatro slash command received', { user: interaction.user.username });
+        } else if (interaction.commandName === "balatro") {
+            Logger.info("Balatro slash command received", {
+                user: interaction.user.username,
+            });
             const result = await gameManager.startGame(interaction, "balatro");
             if (!result) {
-                Logger.error('Failed to start balatro game');
-                await interaction.reply({ content: "Failed to start balatro game!", flags: MessageFlags.Ephemeral });
+                Logger.error("Failed to start balatro game");
+                await interaction.reply({
+                    content: "Failed to start balatro game!",
+                    flags: MessageFlags.Ephemeral,
+                });
             }
         }
         return;
     }
-    
+
     if (interaction.isButton()) {
         try {
             await gameManager.handleButtonInteraction(interaction);
         } catch (error) {
-            Logger.error('Game interaction error', error.message);
+            Logger.error("Game interaction error", error.message);
         }
     }
 });
 
 client.on("messageCreate", async (message) => {
     // Debug: Log all messages to see if event is firing
-    Logger.debug('Message received', {
+    Logger.debug("Message received", {
         author: message.author.username,
         content: message.content.substring(0, 50),
-        isBot: message.author.bot
+        isBot: message.author.bot,
     });
-    
+
     // Add message to unified context cache (for all messages)
     contextManager.addMessage(message);
-    
+
     // Debug: Log all bot messages to see what we're getting
     if (message.author.bot && message.author.id !== client.user.id) {
-        Logger.info('External bot message received', {
+        Logger.info("External bot message received", {
             channel: message.channel.id,
             botName: message.author.username,
             botId: message.author.id,
             hasEmbeds: message.embeds.length > 0,
             contentPreview: message.content.substring(0, 100),
             embedTitle: message.embeds[0]?.title,
-            embedDesc: message.embeds[0]?.description?.substring(0, 100)
+            embedDesc: message.embeds[0]?.description?.substring(0, 100),
         });
     }
-    
+
     // Handle leaderboard bot responses (only for bot messages)
     if (message.author.bot && message.author.id !== client.user.id) {
         if (await leaderboardHandler.handleMessage(message)) {
@@ -161,16 +189,19 @@ client.on("messageCreate", async (message) => {
         }
         return; // Skip other processing for bot messages
     }
-    
+
     // Handle leaderboard commands (only for user messages)
     if (!message.author.bot) {
         await leaderboardHandler.handleMessage(message);
     }
-    
+
     // Check rate limits for commands that use resources
-    const isCommand = message.content.startsWith('!') || message.mentions.has(client.user);
+    const isCommand =
+        message.content.startsWith("!") || message.mentions.has(client.user);
     if (isCommand && !rateLimiter.checkLimits(message.author.id)) {
-        message.reply('⚠️ Rate limit exceeded. Please wait a moment before trying again.');
+        message.reply(
+            "⚠️ Rate limit exceeded. Please wait a moment before trying again."
+        );
         return;
     }
 
@@ -215,7 +246,9 @@ client.on("messageCreate", async (message) => {
     if (message.content === "!cowsay daily") {
         const result = currencyManager.getDailyBonus(message.author.id);
         if (result.success) {
-            message.reply(`🎁 Daily bonus claimed! +${result.amount} coins! New balance: **${result.newBalance}** coins 🪙`);
+            message.reply(
+                `🎁 Daily bonus claimed! +${result.amount} coins! New balance: **${result.newBalance}** coins 🪙`
+            );
         } else {
             message.reply(`❌ ${result.message}`);
         }
@@ -228,49 +261,66 @@ client.on("messageCreate", async (message) => {
             message.reply("No players found! 🪙");
             return;
         }
-        
+
         const embed = new EmbedBuilder()
             .setTitle("🏆 Coin Leaderboard")
             .setColor(0xffd700)
-            .setDescription(leaderboard.map((player, index) => {
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-                return `${medal} <@${player.userId}>: **${player.balance}** coins`;
-            }).join('\n'))
-            .setFooter({ text: 'Play blackjack to earn more coins!' });
-        
+            .setDescription(
+                leaderboard
+                    .map((player, index) => {
+                        const medal =
+                            index === 0
+                                ? "🥇"
+                                : index === 1
+                                ? "🥈"
+                                : index === 2
+                                ? "🥉"
+                                : `${index + 1}.`;
+                        return `${medal} <@${player.userId}>: **${player.balance}** coins`;
+                    })
+                    .join("\n")
+            )
+            .setFooter({ text: "Play blackjack to earn more coins!" });
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     // Handle both !cowsay play blackjack and !blackjack commands
-    const isBlackjackCommand = message.content.startsWith("!cowsay play blackjack ") || message.content.startsWith("!blackjack ");
+    const isBlackjackCommand =
+        message.content.startsWith("!cowsay play blackjack ") ||
+        message.content.startsWith("!blackjack ");
     if (isBlackjackCommand) {
         let args;
         if (message.content.startsWith("!cowsay play blackjack ")) {
-            args = message.content.slice(23).trim().split(' ');
+            args = message.content.slice(23).trim().split(" ");
         } else {
-            args = message.content.slice(11).trim().split(' ');
+            args = message.content.slice(11).trim().split(" ");
         }
-        
+
         const mode = args[0]?.toLowerCase();
         const betAmount = parseInt(args[1]);
-        
-        if (!mode || !['single', 'player', 'dealer'].includes(mode)) {
-            message.reply("Usage: `!blackjack <single|player|dealer> <bet_amount>`\nExample: `!blackjack single 100`");
+
+        if (!mode || !["single", "player", "dealer"].includes(mode)) {
+            message.reply(
+                "Usage: `!blackjack <single|player|dealer> <bet_amount>`\nExample: `!blackjack single 100`"
+            );
             return;
         }
-        
+
         if (!betAmount || betAmount < 10) {
             message.reply("Bet amount must be at least 10 coins!");
             return;
         }
-        
+
         const balance = currencyManager.getBalance(message.author.id);
         if (balance < betAmount) {
-            message.reply(`You don't have enough coins! You have ${balance} coins but need ${betAmount}.`);
+            message.reply(
+                `You don't have enough coins! You have ${balance} coins but need ${betAmount}.`
+            );
             return;
         }
-        
+
         if (await gameManager.startBlackjackGame(message, mode, betAmount)) {
             return;
         } else {
@@ -289,62 +339,77 @@ client.on("messageCreate", async (message) => {
         }
     }
 
-
-
     if (message.content.startsWith("!cowsay play ")) {
-        const args = message.content.slice(13).trim().split(' ');
+        const args = message.content.slice(13).trim().split(" ");
         const gameName = args[0].toLowerCase();
         const opponent = message.mentions.users.first();
-        
+
         if (await gameManager.startGame(message, gameName, opponent)) {
             return;
         } else {
-            message.reply("Game not found! Use \`!cowsay games\` to see available games.");
+            message.reply(
+                "Game not found! Use `!cowsay games` to see available games."
+            );
             return;
         }
     }
 
     if (message.content === "!clearleaderboard") {
         const count = leaderboardHandler.clearAllPending();
-        message.reply(`Cleared ${count} pending leaderboard(s) from all channels! 🧹`);
+        message.reply(
+            `Cleared ${count} pending leaderboard(s) from all channels! 🧹`
+        );
         return;
     }
 
     if (message.content === "!toggleautoreply") {
         const enabled = await autoReply.toggle();
-        message.reply(`Auto-reply to "cowsay" mentions is now ${enabled ? 'enabled' : 'disabled'}! 🐄`);
+        message.reply(
+            `Auto-reply to "cowsay" mentions is now ${
+                enabled ? "enabled" : "disabled"
+            }! 🐄`
+        );
         return;
     }
 
     if (message.content === "!toggleintent") {
         const mode = await intentDetector.toggle();
-        const modeEmojis = { LLM: '🧠', EMBEDDING: '🔍', REGEX: '⚙️' };
-        message.reply(`Intent detection is now using ${mode} mode! ${modeEmojis[mode]}`);
+        const modeEmojis = { LLM: "🧠", EMBEDDING: "🔍", REGEX: "⚙️" };
+        message.reply(
+            `Intent detection is now using ${mode} mode! ${modeEmojis[mode]}`
+        );
         return;
     }
 
     if (message.content === "!showconfig") {
         const autoReplyEnabled = autoReply.isEnabled();
 
-        
         const embed = new EmbedBuilder()
-            .setTitle('⚙️ Cowsay Configuration')
-            .setColor(0x00AE86)
+            .setTitle("⚙️ Cowsay Configuration")
+            .setColor(0x00ae86)
             .addFields(
                 {
-                    name: 'Auto-Reply',
-                    value: `${autoReplyEnabled ? '✅ Enabled' : '❌ Disabled'}\nResponds to "cowsay" mentions`,
-                    inline: true
+                    name: "Auto-Reply",
+                    value: `${
+                        autoReplyEnabled ? "✅ Enabled" : "❌ Disabled"
+                    }\nResponds to "cowsay" mentions`,
+                    inline: true,
                 },
                 {
-                    name: 'Intent Detection',
-                    value: `${intentDetector.mode === 'LLM' ? '🧠 LLM Mode' : intentDetector.mode === 'EMBEDDING' ? '🔍 Embedding Mode' : '⚙️ Regex Mode'}\nDetects conversation continuations`,
-                    inline: true
+                    name: "Intent Detection",
+                    value: `${
+                        intentDetector.mode === "LLM"
+                            ? "🧠 LLM Mode"
+                            : intentDetector.mode === "EMBEDDING"
+                            ? "🔍 Embedding Mode"
+                            : "⚙️ Regex Mode"
+                    }\nDetects conversation continuations`,
+                    inline: true,
                 }
             )
-            .setFooter({ text: 'Use toggle commands to change settings' })
+            .setFooter({ text: "Use toggle commands to change settings" })
             .setTimestamp();
-        
+
         message.reply({ embeds: [embed] });
         return;
     }
@@ -361,26 +426,39 @@ client.on("messageCreate", async (message) => {
                 return;
             }
         } catch (error) {
-            Logger.error('Reply handling error', error.message);
+            Logger.error("Reply handling error", error.message);
         }
     }
 
     // Handle messages in chat threads (continue conversation)
-    if (message.channel.isThread() && message.channel.name.startsWith('Chat with')) {
+    if (
+        message.channel.isThread() &&
+        message.channel.name.startsWith("Chat with")
+    ) {
         try {
-            const context = await contextBuilder.buildContext(message, false, false, true);
+            const context = await contextBuilder.buildContext(
+                message,
+                false,
+                false,
+                true
+            );
             const messages = [
                 llmService.buildSystemMessage(commandHandler.getSystemPrompt()),
                 ...context,
-                llmService.buildUserMessage(message.author.displayName, message.content),
+                llmService.buildUserMessage(
+                    message.author.displayName,
+                    message.content
+                ),
             ];
 
             const answer = await llmService.generateResponse(messages);
             await message.channel.send(answer);
             return;
         } catch (error) {
-            Logger.error('Thread chat error', error.message);
-            message.reply("Sorry, I couldn't process your message in this thread. 🤖");
+            Logger.error("Thread chat error", error.message);
+            message.reply(
+                "Sorry, I couldn't process your message in this thread. 🤖"
+            );
             return;
         }
     }
@@ -418,20 +496,28 @@ client.on("messageCreate", async (message) => {
             const thread = await message.startThread({
                 name: `Chat with ${message.author.displayName}`,
                 autoArchiveDuration: 60, // Auto-archive after 1 hour of inactivity
-                reason: 'One-on-one chat session'
+                reason: "One-on-one chat session",
             });
 
-            const context = await contextBuilder.buildContext(message, false, true, false);
+            const context = await contextBuilder.buildContext(
+                message,
+                false,
+                true,
+                false
+            );
             const messages = [
                 llmService.buildSystemMessage(commandHandler.getSystemPrompt()),
                 ...context,
-                llmService.buildUserMessage(message.author.displayName, question),
+                llmService.buildUserMessage(
+                    message.author.displayName,
+                    question
+                ),
             ];
 
             const answer = await llmService.generateResponse(messages);
             await thread.send(answer);
         } catch (error) {
-            Logger.error('Chat thread error', error.message);
+            Logger.error("Chat thread error", error.message);
             message.reply(
                 "Sorry, I couldn't start a chat thread right now. 🤖"
             );
@@ -478,15 +564,35 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    if (message.content === "!cowsay embed") {
+        const cards = [
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+            cardRenderer.getRandomCard(),
+        ];
+
+        const asciiCards = cardRenderer.renderCards(cards);
+
+        message.reply(
+            `**🃏 ASCII Playing Cards**\n\`\`\`\n${asciiCards}\n\`\`\``
+        );
+        return;
+    }
+
     if (message.content.startsWith("!cowsay")) {
         const text = message.content.slice(8).trim();
         const validation = SecurityUtils.validateInput(text, 500);
-        
+
         if (!validation.valid) {
             message.reply(`Error: ${validation.error}`);
             return;
         }
-        
+
         if (!text) {
             message.reply(
                 "Please provide text for the cow to say! Usage: `!cowsay Hello World`"
@@ -495,20 +601,26 @@ client.on("messageCreate", async (message) => {
         }
 
         try {
-            Logger.info('Cowsay command used', { user: message.author.username });
+            Logger.info("Cowsay command used", {
+                user: message.author.username,
+            });
             const cow = cowsay.say({ text });
-            const escaped = cow.replace(/\\/g, '\\\\').replace(/`/g, '\\\`');
+            const escaped = cow.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
             const formatted = `\`\`\`\n${escaped}\n\`\`\``;
             if (formatted.length > 2000) {
                 const maxContent = 2000 - 8;
-                const truncated = escaped.slice(0, maxContent - 20) + '\n[... ASCII too long ...]';
+                const truncated =
+                    escaped.slice(0, maxContent - 20) +
+                    "\n[... ASCII too long ...]";
                 message.reply(`\`\`\`\n${truncated}\n\`\`\``);
             } else {
                 message.reply(formatted);
             }
         } catch (error) {
-            Logger.error('Cowsay generation error', error.message);
-            message.reply('Sorry, there was an error generating the cow message.');
+            Logger.error("Cowsay generation error", error.message);
+            message.reply(
+                "Sorry, there was an error generating the cow message."
+            );
         }
         return;
     }
@@ -521,28 +633,38 @@ client.on("messageCreate", async (message) => {
     }
 
     // Intent detection - check if message seems directed at Cowsay (only if auto-reply is enabled)
-    if (autoReply.isEnabled() && !message.mentions.has(client.user) && message.author.id !== client.user.id && !message.content.includes('-leaderboard') && !message.content.startsWith('!')) {
+    if (
+        autoReply.isEnabled() &&
+        !message.mentions.has(client.user) &&
+        message.author.id !== client.user.id &&
+        !message.content.includes("-leaderboard") &&
+        !message.content.startsWith("!")
+    ) {
         try {
-            const recentMessages = contextManager.getRecentMessages(message.channel.id, 6);
-            
-            Logger.debug('Intent detection check', {
+            const recentMessages = contextManager.getRecentMessages(
+                message.channel.id,
+                6
+            );
+
+            Logger.debug("Intent detection check", {
                 hasRecentMessages: !!recentMessages,
                 isArray: Array.isArray(recentMessages),
                 messageCount: recentMessages.length,
                 messageContent: message.content.substring(0, 50),
-                lastMessageAuthor: recentMessages[recentMessages.length - 1]?.author,
-                mode: intentDetector.mode
+                lastMessageAuthor:
+                    recentMessages[recentMessages.length - 1]?.author,
+                mode: intentDetector.mode,
             });
-            
+
             if (await intentDetector.detectIntent(message, recentMessages)) {
-                Logger.info('Intent detected - handling as mention');
-                
+                Logger.info("Intent detected - handling as mention");
+
                 // Always collapse intent detection
                 responseCollapse.shouldCollapse(message, client.user.id);
                 return;
             }
         } catch (error) {
-            Logger.error('Intent detection error', error.message);
+            Logger.error("Intent detection error", error.message);
         }
     }
 
@@ -564,22 +686,33 @@ client.on("messageCreate", async (message) => {
                 message.reply(`Error: ${validation.error}`);
                 return;
             }
-            
-            Logger.info(`${cleanName}say command used`, { user: message.author.username });
+
+            Logger.info(`${cleanName}say command used`, {
+                user: message.author.username,
+            });
             try {
                 const result = characterManager.generateAscii(char, text);
-                const escaped = result.replace(/\\/g, '\\\\').replace(/`/g, '\\\`');
+                const escaped = result
+                    .replace(/\\/g, "\\\\")
+                    .replace(/`/g, "\\`");
                 const formatted = `\`\`\`\n${escaped}\n\`\`\``;
                 if (formatted.length > 2000) {
                     const maxContent = 2000 - 8;
-                    const truncated = escaped.slice(0, maxContent - 20) + '\n[... ASCII too long ...]';
+                    const truncated =
+                        escaped.slice(0, maxContent - 20) +
+                        "\n[... ASCII too long ...]";
                     message.reply(`\`\`\`\n${truncated}\n\`\`\``);
                 } else {
                     message.reply(formatted);
                 }
             } catch (error) {
-                Logger.error(`Character generation error for ${cleanName}`, error.message);
-                message.reply(`Sorry, ${cleanName} character is not available.`);
+                Logger.error(
+                    `Character generation error for ${cleanName}`,
+                    error.message
+                );
+                message.reply(
+                    `Sorry, ${cleanName} character is not available.`
+                );
             }
             return;
         }
@@ -589,75 +722,125 @@ client.on("messageCreate", async (message) => {
 // Set up response collapse processor
 responseCollapse.setProcessor(async (collapsedMessages) => {
     if (collapsedMessages.length === 0) return;
-    
+
     const firstMessage = collapsedMessages[0].message;
-    
+
     try {
         if (collapsedMessages.length === 1) {
             console.log(`[COLLAPSE] Processing single message`);
             // Single message - handle normally
             const msg = firstMessage;
             if (msg.reference?.messageId) {
-                const referencedMessage = await msg.channel.messages.fetch(msg.reference.messageId);
-                const answer = await chatHandler.handleReply(msg, referencedMessage, commandHandler.getSystemPrompt());
+                const referencedMessage = await msg.channel.messages.fetch(
+                    msg.reference.messageId
+                );
+                const answer = await chatHandler.handleReply(
+                    msg,
+                    referencedMessage,
+                    commandHandler.getSystemPrompt()
+                );
                 await llmService.sendResponse(msg, answer);
             } else if (autoReply.shouldReply(msg, client.user.id)) {
-                const context = await contextBuilder.buildContext(msg, false, true, false);
+                const context = await contextBuilder.buildContext(
+                    msg,
+                    false,
+                    true,
+                    false
+                );
                 const messages = [
-                    llmService.buildSystemMessage(commandHandler.getSystemPrompt() + " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."),
+                    llmService.buildSystemMessage(
+                        commandHandler.getSystemPrompt() +
+                            " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."
+                    ),
                     ...context,
-                    llmService.buildUserMessage(msg.author.displayName, msg.content),
+                    llmService.buildUserMessage(
+                        msg.author.displayName,
+                        msg.content
+                    ),
                 ];
                 const answer = await llmService.generateResponse(messages);
                 await llmService.sendResponse(msg, answer);
             } else {
                 // Handle mention with potential reply context
-                const context = await contextBuilder.buildContext(msg, true, true, msg.channel.isThread());
+                const context = await contextBuilder.buildContext(
+                    msg,
+                    true,
+                    true,
+                    msg.channel.isThread()
+                );
                 let replyContext = [];
-                
+
                 if (msg.reference && msg.reference.messageId) {
                     try {
-                        const referencedMessage = await msg.channel.messages.fetch(msg.reference.messageId);
-                        const referencedDisplayName = referencedMessage.member?.displayName || referencedMessage.author.username;
+                        const referencedMessage =
+                            await msg.channel.messages.fetch(
+                                msg.reference.messageId
+                            );
+                        const referencedDisplayName =
+                            referencedMessage.member?.displayName ||
+                            referencedMessage.author.username;
                         replyContext.push({
                             role: "system",
-                            content: `User is replying to this message: "${referencedDisplayName}: ${referencedMessage.content}"`
+                            content: `User is replying to this message: "${referencedDisplayName}: ${referencedMessage.content}"`,
                         });
                     } catch (error) {
-                        Logger.error('Failed to fetch referenced message in collapse', error.message);
+                        Logger.error(
+                            "Failed to fetch referenced message in collapse",
+                            error.message
+                        );
                     }
                 }
-                
-                const content = msg.content.replace(`<@${client.user.id}>`, "").trim();
+
+                const content = msg.content
+                    .replace(`<@${client.user.id}>`, "")
+                    .trim();
                 const messages = [
-                    llmService.buildSystemMessage(commandHandler.getSystemPrompt()),
+                    llmService.buildSystemMessage(
+                        commandHandler.getSystemPrompt()
+                    ),
                     ...context,
                     ...replyContext,
-                    llmService.buildUserMessage(msg.author.displayName, content || 'mentioned you'),
+                    llmService.buildUserMessage(
+                        msg.author.displayName,
+                        content || "mentioned you"
+                    ),
                 ];
-                
+
                 const answer = await llmService.generateResponse(messages);
                 await llmService.sendResponse(msg, answer);
             }
         } else {
-            console.log(`[COLLAPSE] Processing ${collapsedMessages.length} batched messages`);
+            console.log(
+                `[COLLAPSE] Processing ${collapsedMessages.length} batched messages`
+            );
             // Multiple messages - batch response
-            const allContent = collapsedMessages.map(m => 
-                `${m.message.author.displayName}: ${m.message.content}`
-            ).join('\n');
-            
-            const context = await contextBuilder.buildContext(firstMessage, false, true, firstMessage.channel.isThread());
+            const allContent = collapsedMessages
+                .map(
+                    (m) =>
+                        `${m.message.author.displayName}: ${m.message.content}`
+                )
+                .join("\n");
+
+            const context = await contextBuilder.buildContext(
+                firstMessage,
+                false,
+                true,
+                firstMessage.channel.isThread()
+            );
             const messages = [
-                llmService.buildSystemMessage(commandHandler.getSystemPrompt() + " Multiple people are talking to you at once. Address all their messages in one response."),
+                llmService.buildSystemMessage(
+                    commandHandler.getSystemPrompt() +
+                        " Multiple people are talking to you at once. Address all their messages in one response."
+                ),
                 ...context,
-                { role: "user", content: allContent }
+                { role: "user", content: allContent },
             ];
-            
+
             const answer = await llmService.generateResponse(messages);
             await llmService.sendResponse(firstMessage, answer);
         }
     } catch (error) {
-        Logger.error('Collapsed response error', error.message);
+        Logger.error("Collapsed response error", error.message);
     }
 });
 

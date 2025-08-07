@@ -2,15 +2,16 @@ const tictactoe = require('./games/tictactoe');
 const blackjack = require('./games/blackjack');
 const battleship = require('./games/battleship');
 const balatro = require('./games/balatro');
+const pong = require('./games/pong');
 
 class GameManager {
     constructor() {
         this.activeGames = new Map();
-        this.games = { tictactoe, blackjack, battleship, balatro };
+        this.games = { tictactoe, blackjack, battleship, balatro, pong };
     }
 
     getAvailableGames() {
-        return ["tictactoe", "blackjack", "battleship", "balatro"];
+        return ["tictactoe", "blackjack", "battleship", "balatro", "pong"];
     }
 
     createGamesEmbed() {
@@ -37,6 +38,11 @@ class GameManager {
                 {
                     name: '🃏 Balatro',
                     value: '`/balatro` - Start a poker-based scoring game',
+                    inline: false
+                },
+                {
+                    name: '🏓 Pong',
+                    value: '`!cowsay play pong` - Classic paddle game',
                     inline: false
                 },
                 {
@@ -151,6 +157,11 @@ class GameManager {
         // Check for balatro interactions
         if (interaction.customId.startsWith('bal_')) {
             return await balatro.handleInteraction(interaction, null, null, this);
+        }
+        
+        // Check for pong interactions
+        if (interaction.customId.startsWith('pong_')) {
+            return await pong.handleInteraction(interaction, null, null, this);
         }
         
         // Check for blackjack lobby interactions first (join/cancel/start)
