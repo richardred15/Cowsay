@@ -39,7 +39,7 @@ class MentionHandler {
             }
             
             const messages = [
-                this.llmService.buildSystemMessage(this.commandHandler.getSystemPrompt()),
+                this.llmService.buildSystemMessage(await this.commandHandler.getSystemPrompt(message.guild?.id)),
                 ...context,
                 ...replyContext,
                 this.llmService.buildUserMessage(message.author.displayName, content || 'mentioned you'),

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -17,6 +17,28 @@
         "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
       "indexes": ["user_id"]
+    },
+    "server_config": {
+      "columns": {
+        "server_id": "VARCHAR(50) PRIMARY KEY",
+        "auto_reply_enabled": "BOOLEAN DEFAULT TRUE",
+        "intent_detection_mode": "VARCHAR(20) DEFAULT 'LLM'",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+      },
+      "indexes": []
+    },
+    "server_rivals": {
+      "columns": {
+        "server_id": "VARCHAR(50) NOT NULL",
+        "rival_id": "VARCHAR(50) NOT NULL",
+        "rival_name": "VARCHAR(100) NOT NULL",
+        "description": "TEXT",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "PRIMARY KEY (server_id, rival_id)": ""
+      },
+      "indexes": ["server_id"]
     }
   }
 }

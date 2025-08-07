@@ -9,8 +9,8 @@ class CommandHandler {
         // System prompt now comes from global config
     }
 
-    getSystemPrompt() {
-        return getSystemPrompt(LLM_PROVIDER);
+    async getSystemPrompt(serverId = null) {
+        return await getSystemPrompt(LLM_PROVIDER, serverId);
     }
 
     handleHelpCommand(message) {
@@ -35,8 +35,13 @@ class CommandHandler {
                     inline: true
                 },
                 {
+                    name: '🔥 Rivals',
+                    value: '`!cowsay rival add @user description` - Add a rival\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals',
+                    inline: true
+                },
+                {
                     name: '🎯 Other Commands',
-                    value: '`!characters` - View all ASCII characters\n`!clearleaderboard` - Clear leaderboard cache',
+                    value: '`!characters` - View all ASCII characters\n`!clearleaderboard` - Clear leaderboard cache\n`!cowsay help rivals` - Learn about the rivals system',
                     inline: false
                 },
                 {

@@ -57,7 +57,7 @@ class LLMService {
         message.reply(truncatedAnswer);
     }
 
-    buildSystemMessage(systemPrompt = getSystemPrompt(LLM_PROVIDER)) {
+    buildSystemMessage(systemPrompt) {
         return { role: "system", content: systemPrompt };
     }
 

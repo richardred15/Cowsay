@@ -25,11 +25,18 @@ class Pong {
                 paddle: 4,
             },
             player2: null,
-            ball: { x: 10, y: 5, dx: 1, dy: 1 },
+            ball: {
+                x: Math.floor(this.width / 2),
+                y: Math.floor(this.height / 2),
+                dx: 1,
+                dy: 1
+            },
             scores: { player1: 0, player2: 0 },
             messageId: null,
             gameInterval: null,
         };
+
+        console.log(gameData);
 
         this.activeGames.set(gameKey, gameData);
 

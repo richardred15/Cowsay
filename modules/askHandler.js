@@ -19,7 +19,7 @@ class AskHandler {
 
             const context = await contextBuilder.buildContext(message, false, true, message.channel.isThread());
             const messages = [
-                this.llmService.buildSystemMessage(this.commandHandler.getSystemPrompt()),
+                this.llmService.buildSystemMessage(await this.commandHandler.getSystemPrompt(message.guild?.id)),
                 ...context,
                 this.llmService.buildUserMessage(message.author.displayName, question),
             ];

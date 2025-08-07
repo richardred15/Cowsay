@@ -31,6 +31,7 @@ const contextManager = require("./modules/contextManager");
 const responseCollapse = require("./modules/responseCollapse");
 const gameManager = require("./modules/gameManager");
 const currencyManager = require("./modules/currencyManager");
+const rivalManager = require("./modules/rivalManager");
 
 const client = new Client({
     intents: [
@@ -187,7 +188,41 @@ client.on("messageCreate", async (message) => {
         if (await leaderboardHandler.handleMessage(message)) {
             return;
         }
-        return; // Skip other processing for bot messages
+        // Check if this is a rival bot
+        const isRival = await rivalManager.isRival(message.guild?.id, message.author.id);
+        if (!isRival) {
+            return;
+        }
+        
+        // Parse rival bot embeds into plain text for context
+        if (message.embeds.length > 0) {
+            const embedText = message.embeds.map(embed => {
+                let text = '';
+                if (embed.title) text += embed.title + '\n';
+                if (embed.description) text += embed.description + '\n';
+                if (embed.fields) {
+                    embed.fields.forEach(field => {
+                        text += field.name + ': ' + field.value + '\n';
+                    });
+                }
+                return text;
+            }).join('\n');
+            message.content = (message.content + '\n' + embedText).trim();
+        }
+        
+        console.log('RIVAL MESSAGE STORED TO CONTEXT:', {
+            author: message.author.username,
+            content: message.content,
+            hasEmbeds: message.embeds.length > 0,
+            channel: message.channel.id
+        });
+        
+        // Re-add the modified message to context with parsed embed content
+        contextManager.addMessage(message);
+        
+        // Rival bot messages should trigger potential responses
+        responseCollapse.shouldCollapse(message, client.user.id);
+        return;
     }
 
     // Handle leaderboard commands (only for user messages)
@@ -228,6 +263,34 @@ client.on("messageCreate", async (message) => {
 
     if (message.content === "!cowsay help blackjack") {
         const embed = gameManager.createBlackjackHelpEmbed();
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay help rivals") {
+        const embed = new EmbedBuilder()
+            .setTitle('🔥 Rivals System Help')
+            .setColor(0xff4444)
+            .setDescription('Configure rivals for Cowsay to interact with! Rivals are other bots that Cowsay will investigate and try to discover commands for.')
+            .addFields(
+                {
+                    name: '📝 Commands',
+                    value: '`!cowsay rival add @user <description>` - Add a rival with custom description\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all configured rivals',
+                    inline: false
+                },
+                {
+                    name: '🤖 How It Works',
+                    value: 'When you add a rival, Cowsay will:\n• Monitor their messages and responses\n• Try to discover their commands\n• Ask users to help run commands\n• Be sassy and competitive with them',
+                    inline: false
+                },
+                {
+                    name: '⚙️ Per-Server',
+                    value: 'Rivals are configured per server - each server has its own rival list that only affects that server.',
+                    inline: false
+                }
+            )
+            .setFooter({ text: 'Example: !cowsay rival add @bark terrible bot with mysterious commands' });
+        
         message.reply({ embeds: [embed] });
         return;
     }
@@ -362,27 +425,96 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    if (message.content.startsWith("!cowsay rival ")) {
+        const args = message.content.slice(14).trim().split(' ');
+        const action = args[0]?.toLowerCase();
+        
+        if (action === 'add') {
+            const mention = message.mentions.users.first();
+            if (!mention) {
+                message.reply('Please mention a user to add as a rival! Usage: `!cowsay rival add @user description`');
+                return;
+            }
+            
+            if (mention.id === client.user.id) {
+                message.reply('I cannot be my own rival! 😅');
+                return;
+            }
+            
+            const description = args.slice(1).join(' ').replace(`<@${mention.id}>`, '').trim();
+            if (!description) {
+                message.reply('Please provide a description for the rival! Usage: `!cowsay rival add @user description`');
+                return;
+            }
+            
+            const success = await rivalManager.addRival(message.guild?.id, mention.id, mention.username, description);
+            if (success) {
+                message.reply(`🔥 Added **${mention.username}** as a rival! ${description}`);
+            } else {
+                message.reply('❌ Failed to add rival. Please try again.');
+            }
+            return;
+        }
+        
+        if (action === 'remove') {
+            const mention = message.mentions.users.first();
+            if (!mention) {
+                message.reply('Please mention a user to remove as a rival! Usage: `!cowsay rival remove @user`');
+                return;
+            }
+            
+            const success = await rivalManager.removeRival(message.guild?.id, mention.id);
+            if (success) {
+                message.reply(`✅ Removed **${mention.username}** as a rival.`);
+            } else {
+                message.reply('❌ That user is not a rival or removal failed.');
+            }
+            return;
+        }
+        
+        if (action === 'list') {
+            const rivals = await rivalManager.getRivals(message.guild?.id);
+            if (rivals.length === 0) {
+                message.reply('No rivals configured for this server.');
+                return;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🔥 Server Rivals')
+                .setColor(0xff4444)
+                .setDescription(rivals.map(r => `**${r.name}** - ${r.description}`).join('\n'))
+                .setFooter({ text: `${rivals.length} rival(s) configured` });
+            
+            message.reply({ embeds: [embed] });
+            return;
+        }
+        
+        message.reply('Usage: `!cowsay rival add @user description`, `!cowsay rival remove @user`, or `!cowsay rival list`');
+        return;
+    }
+
     if (message.content === "!toggleautoreply") {
-        const enabled = await autoReply.toggle();
+        const enabled = await autoReply.toggle(message.guild?.id);
         message.reply(
             `Auto-reply to "cowsay" mentions is now ${
                 enabled ? "enabled" : "disabled"
-            }! 🐄`
+            } for this server! 🐄`
         );
         return;
     }
 
     if (message.content === "!toggleintent") {
-        const mode = await intentDetector.toggle();
+        const mode = await intentDetector.toggle(message.guild?.id);
         const modeEmojis = { LLM: "🧠", EMBEDDING: "🔍", REGEX: "⚙️" };
         message.reply(
-            `Intent detection is now using ${mode} mode! ${modeEmojis[mode]}`
+            `Intent detection is now using ${mode} mode for this server! ${modeEmojis[mode]}`
         );
         return;
     }
 
     if (message.content === "!showconfig") {
-        const autoReplyEnabled = autoReply.isEnabled();
+        const autoReplyEnabled = await autoReply.isEnabled(message.guild?.id);
+        const intentMode = await intentDetector.getMode(message.guild?.id);
 
         const embed = new EmbedBuilder()
             .setTitle("⚙️ Cowsay Configuration")
@@ -398,16 +530,16 @@ client.on("messageCreate", async (message) => {
                 {
                     name: "Intent Detection",
                     value: `${
-                        intentDetector.mode === "LLM"
+                        intentMode === "LLM"
                             ? "🧠 LLM Mode"
-                            : intentDetector.mode === "EMBEDDING"
+                            : intentMode === "EMBEDDING"
                             ? "🔍 Embedding Mode"
                             : "⚙️ Regex Mode"
                     }\nDetects conversation continuations`,
                     inline: true,
                 }
             )
-            .setFooter({ text: "Use toggle commands to change settings" })
+            .setFooter({ text: "Use toggle commands to change settings for this server" })
             .setTimestamp();
 
         message.reply({ embeds: [embed] });
@@ -443,7 +575,7 @@ client.on("messageCreate", async (message) => {
                 true
             );
             const messages = [
-                llmService.buildSystemMessage(commandHandler.getSystemPrompt()),
+                llmService.buildSystemMessage(await commandHandler.getSystemPrompt(message.guild?.id)),
                 ...context,
                 llmService.buildUserMessage(
                     message.author.displayName,
@@ -506,7 +638,7 @@ client.on("messageCreate", async (message) => {
                 false
             );
             const messages = [
-                llmService.buildSystemMessage(commandHandler.getSystemPrompt()),
+                llmService.buildSystemMessage(await commandHandler.getSystemPrompt(message.guild?.id)),
                 ...context,
                 llmService.buildUserMessage(
                     message.author.displayName,
@@ -626,7 +758,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Auto-reply to cowsay mentions (check before character commands)
-    if (autoReply.shouldReply(message, client.user.id)) {
+    if (await autoReply.shouldReply(message, client.user.id)) {
         // Always collapse auto-replies
         responseCollapse.shouldCollapse(message, client.user.id);
         return;
@@ -634,7 +766,7 @@ client.on("messageCreate", async (message) => {
 
     // Intent detection - check if message seems directed at Cowsay (only if auto-reply is enabled)
     if (
-        autoReply.isEnabled() &&
+        await autoReply.isEnabled(message.guild?.id) &&
         !message.mentions.has(client.user) &&
         message.author.id !== client.user.id &&
         !message.content.includes("-leaderboard") &&
@@ -737,10 +869,10 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                 const answer = await chatHandler.handleReply(
                     msg,
                     referencedMessage,
-                    commandHandler.getSystemPrompt()
+                    await commandHandler.getSystemPrompt(msg.guild?.id)
                 );
                 await llmService.sendResponse(msg, answer);
-            } else if (autoReply.shouldReply(msg, client.user.id)) {
+            } else if (await autoReply.shouldReply(msg, client.user.id)) {
                 const context = await contextBuilder.buildContext(
                     msg,
                     false,
@@ -749,7 +881,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                 );
                 const messages = [
                     llmService.buildSystemMessage(
-                        commandHandler.getSystemPrompt() +
+                        await commandHandler.getSystemPrompt(msg.guild?.id) +
                             " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."
                     ),
                     ...context,
@@ -796,7 +928,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                     .trim();
                 const messages = [
                     llmService.buildSystemMessage(
-                        commandHandler.getSystemPrompt()
+                        await commandHandler.getSystemPrompt(msg.guild?.id)
                     ),
                     ...context,
                     ...replyContext,
@@ -829,7 +961,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
             );
             const messages = [
                 llmService.buildSystemMessage(
-                    commandHandler.getSystemPrompt() +
+                    await commandHandler.getSystemPrompt(firstMessage.guild?.id) +
                         " Multiple people are talking to you at once. Address all their messages in one response."
                 ),
                 ...context,

@@ -96,7 +96,7 @@ async function handleLeaderboardResponse(message, llmProvider, animalSayTool, ha
                 tagContextLength: tagContext.length
             });
             
-            const systemPrompt = getSystemPrompt(LLM_PROVIDER) + " Focus on providing SHORT commentary on these leaderboard results using actual player names and scores. Celebrate winners and make friendly jokes about score gaps.";
+            const systemPrompt = await getSystemPrompt(LLM_PROVIDER, message.guild?.id) + " Focus on providing SHORT commentary on these leaderboard results using actual player names and scores. Celebrate winners and make friendly jokes about score gaps.";
             
             const userContent = `Someone ran a leaderboard command and here are the results:\n\n${leaderboardText}\n\n${contextSummary}\n\n${tagContext}\n\nPlease provide some fun commentary about these results!`;
             
