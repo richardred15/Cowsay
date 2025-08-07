@@ -1,0 +1,193 @@
+# 🐄 Cowsay Discord Bot
+
+A feature-rich Discord bot that generates ASCII art, plays games, and provides AI-powered conversations.
+
+## Features
+
+### 💬 Chat & AI
+- **AI Conversations**: `!ask <question>` or `!chat <question>`
+- **Auto-reply**: Responds to "cowsay" mentions
+- **Intent Detection**: Smart conversation continuation
+- **Context Management**: Remembers conversation history
+
+### 🎭 ASCII Art
+- **Cowsay**: `!cowsay <text>` - Classic cow ASCII
+- **Multiple Characters**: `!<character>say <text>` - 50+ ASCII characters
+- **Character Browser**: `!characters` - View all available characters
+
+### 🎮 Games & Currency
+- **Blackjack**: Full multiplayer with betting system
+- **Battleship**: Real-time naval combat (slash command)
+- **Balatro**: Poker-based scoring game (slash command)
+- **Pong**: Classic 2-player paddle game
+- **Tic-Tac-Toe**: Challenge other players
+- **Currency System**: Earn coins, daily bonuses, leaderboards
+
+### 🛠️ Utilities
+- **Card Renderer**: ASCII playing cards with custom emojis
+- **Pagination**: Browse large lists efficiently
+- **Rate Limiting**: Prevents spam and abuse
+- **Persistent Storage**: MySQL database for game states
+
+## Quick Start
+
+### Prerequisites
+- Node.js 16+
+- MySQL database
+- Discord bot token
+- LLM API key (Groq recommended)
+
+### Installation
+```bash
+git clone <repository>
+cd Cowsay
+npm install
+```
+
+### Configuration
+Copy `.env.example` to `.env` and configure:
+
+```env
+# Required
+DISCORD_TOKEN=your_bot_token_here
+LLM_PROVIDER=groq
+MODEL=llama3-70b-8192
+GROQ_API_KEY=your_groq_api_key_here
+
+# Database (required for Balatro)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=admin
+DB_PASSWORD=your_mysql_password_here
+DB_NAME=cowsay
+
+# Optional
+INTENT_MODEL=llama3-8b-8192
+DEBUG_LOGGING=true
+```
+
+### Bot Permissions
+When inviting the bot, ensure these scopes:
+- `bot`
+- `applications.commands` (for slash commands)
+
+Required permissions:
+- Send Messages
+- Use Slash Commands
+- Embed Links
+- Read Message History
+- Use External Emojis
+
+### Running
+```bash
+npm start
+```
+
+## Commands
+
+### Chat Commands
+- `!ask <question>` - Ask the AI anything
+- `!chat <question>` - Start a conversation thread
+- `!clear` - Clear conversation context
+
+### Fun Commands
+- `!cowsay <text>` - Make the cow speak
+- `!<character>say <text>` - Use other ASCII characters
+- `!joke` - Random dad joke
+- `!rimshot` - Ba-dum-tss!
+- `!cowsay embed` - Test ASCII card display
+
+### Games
+- `!cowsay games` - View all available games
+- `!cowsay play <game>` - Start a game
+- `/battleship` - Battleship (slash command)
+- `/balatro` - Balatro poker (slash command)
+- `!blackjack <mode> <bet>` - Quick blackjack
+- `!cowsay join` - Join multiplayer lobbies
+
+### Currency
+- `!cowsay balance` - Check your coins
+- `!cowsay daily` - Claim daily bonus
+- `!cowsay leaderboard` - Top coin holders
+
+### Utilities
+- `!characters` - Browse ASCII characters
+- `!cowsay help` - Show all commands
+- `!showconfig` - View bot configuration
+- `!toggleautoreply` - Toggle auto-reply
+- `!toggleintent` - Cycle intent detection modes
+
+## Game Details
+
+### 🃏 Blackjack
+- Single player vs AI or multiplayer
+- Betting system with coin rewards
+- Standard rules: Hit, Stand, Double Down
+- Blackjack pays 2.5x, wins pay 2x
+
+### 🚢 Battleship
+- Real-time web-based gameplay
+- Private player links for ship placement
+- Turn-based combat with live updates
+
+### 🃏 Balatro
+- Poker-based scoring system
+- Build hands to beat blind requirements
+- Persistent game state across restarts
+- Ante progression with increasing difficulty
+
+### 🏓 Pong
+- Classic 2-player paddle game
+- 1 FPS strategic gameplay
+- Shared controls via Discord buttons
+- First to 5 points wins
+
+### ⭕ Tic-Tac-Toe
+- Challenge other players
+- Interactive button-based gameplay
+- Win detection and draw handling
+
+## Architecture
+
+### Core Modules
+- **LLM Integration**: Groq, OpenAI, or local model support
+- **Game Manager**: Unified game system with interaction routing
+- **Currency System**: Coin economy with daily bonuses
+- **Context Management**: Conversation history and threading
+- **Security**: Input validation and rate limiting
+
+### Database Schema
+- **Balatro Games**: Persistent poker game states
+- **Currency**: User balances and transaction history
+- **Context**: Conversation history storage
+
+### File Structure
+```
+├── modules/
+│   ├── games/          # Game implementations
+│   ├── llmProvider.js  # AI model integration
+│   ├── gameManager.js  # Game coordination
+│   ├── database.js     # MySQL connection
+│   └── ...
+├── config.js           # Configuration management
+├── index.js           # Main bot entry point
+└── schema.json        # Database schema
+```
+
+## Development
+
+### Adding New Games
+1. Create `modules/games/newgame.js`
+2. Implement required methods: `start()`, `handleInteraction()`
+3. Add to `gameManager.js` games list
+4. Update help commands
+
+### Custom Characters
+Add ASCII art files to the characters directory and they'll be automatically loaded as `!<name>say` commands.
+
+### Environment Variables
+See `.env.example` for all available configuration options.
+
+## License
+
+MIT License - see LICENSE file for details.

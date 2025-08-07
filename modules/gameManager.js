@@ -32,17 +32,17 @@ class GameManager {
                 },
                 {
                     name: '🚢 Battleship',
-                    value: '`/battleship` - Create a new battleship game',
+                    value: '`/battleship` - Create a new battleship game\n• **Slash command** - Real-time naval combat\n• Player 1 gets private link, Player 2 uses button',
                     inline: false
                 },
                 {
                     name: '🃏 Balatro',
-                    value: '`/balatro` - Start a poker-based scoring game',
+                    value: '`/balatro` - Start a poker-based scoring game\n• **Slash command** - Single player poker scoring\n• Build hands to beat blind requirements\n• Persistent across bot restarts',
                     inline: false
                 },
                 {
                     name: '🏓 Pong',
-                    value: '`!cowsay play pong` - Classic paddle game',
+                    value: '`!cowsay play pong` - Classic paddle game\n• **2 players required** - Use "Join Game" button\n• Shared Up/Down controls for paddles\n• First to 5 points wins (1 FPS gameplay)',
                     inline: false
                 },
                 {

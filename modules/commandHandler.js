@@ -26,12 +26,12 @@ class CommandHandler {
                 },
                 {
                     name: '🎭 Fun Commands', 
-                    value: '`!cowsay <text>` - Make the cow speak\n`!joke` - Random dad joke\n`!rimshot` - Ba-dum-tss!',
+                    value: '`!cowsay <text>` - Make the cow speak\n`!<character>say <text>` - Use other ASCII characters\n`!joke` - Random dad joke\n`!rimshot` - Ba-dum-tss!\n`!cowsay embed` - Test ASCII card display',
                     inline: true
                 },
                 {
                     name: '🎮 Games & Currency',
-                    value: '`!cowsay games` - View available games\n`!cowsay play <game>` - Start a game\n`!blackjack <mode> <bet>` - Quick blackjack\n`!cowsay join` - Join multiplayer lobbies\n`!cowsay balance` - Check your coins 🪙\n`!cowsay daily` - Claim daily bonus\n`!cowsay leaderboard` - Top coin holders',
+                    value: '`!cowsay games` - View available games\n`!cowsay play <game>` - Start a game\n`/battleship` - Battleship (slash command)\n`/balatro` - Balatro poker (slash command)\n`!blackjack <mode> <bet>` - Quick blackjack\n`!cowsay join` - Join multiplayer lobbies\n`!cowsay balance` - Check your coins 🪙\n`!cowsay daily` - Claim daily bonus\n`!cowsay leaderboard` - Top coin holders',
                     inline: true
                 },
                 {
