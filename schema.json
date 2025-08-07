@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "tables": {
+    "balatro_games": {
+      "columns": {
+        "id": "VARCHAR(50) PRIMARY KEY",
+        "user_id": "VARCHAR(50) NOT NULL",
+        "ante": "INT DEFAULT 1",
+        "chips": "BIGINT DEFAULT 300",
+        "hands_remaining": "INT DEFAULT 4",
+        "discards_remaining": "INT DEFAULT 3",
+        "current_hand": "JSON",
+        "deck": "JSON",
+        "jokers": "JSON",
+        "blind_data": "JSON",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+      },
+      "indexes": ["user_id"]
+    }
+  }
+}

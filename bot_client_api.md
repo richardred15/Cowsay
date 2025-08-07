@@ -1,7 +1,7 @@
 # Battleship Bot WebSocket API
 
 ## Connection
-- Endpoint: `ws://localhost/projects/BattleShip/api/bot`
+- Endpoint: `ws://localhost:3050/api/bot`
 - Localhost only - external connections denied
 
 ## Bot → Server Messages

@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const cowsay = require("cowsay");
 const llmProvider = require("./modules/llmProvider");
 const LLMService = require("./modules/llmService");
@@ -35,7 +35,7 @@ const client = new Client({
     ],
 });
 
-client.once("ready", () => {
+client.once("ready", async () => {
     Logger.info(`Bot logged in as ${client.user.tag}`);
     Logger.info(`Bot is in ${client.guilds.cache.size} guilds`);
     client.guilds.cache.forEach(guild => {
@@ -47,10 +47,40 @@ client.once("ready", () => {
         status: "online",
     });
 
+    // Initialize database
+    const database = require('./modules/database');
+    await database.init();
+
+    // Load active games from database
+    const balatro = require('./modules/games/balatro');
+    await balatro.loadAllActiveGames();
+
+    // Set client reference for battleship game
+    const battleship = require('./modules/games/battleship');
+    battleship.setClient(client);
+
+    // Register slash commands
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('battleship')
+            .setDescription('Create a new battleship game'),
+        new SlashCommandBuilder()
+            .setName('balatro')
+            .setDescription('Start a poker-based scoring game')
+    ];
+    
+    try {
+        const data = await client.application.commands.set(commands);
+        Logger.info(`Registered ${data.size} slash commands: ${data.map(cmd => cmd.name).join(', ')}`);
+    } catch (error) {
+        Logger.error('Failed to register slash commands', error.message);
+    }
+
     // Clean up old data every hour
     setInterval(() => {
         try {
             tagManager.cleanupOldData();
+            contextManager.cleanupOldData();
             contextManager.cleanupAll();
             rateLimiter.cleanup();
         } catch (error) {
@@ -69,14 +99,34 @@ const askHandler = new AskHandler(llmProvider, commandHandler);
 const leaderboardHandler = new LeaderboardHandler(llmProvider, toolManager);
 const intentDetector = new IntentDetector();
 
-// Handle button interactions for games
+// Handle interactions (slash commands and buttons)
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
+    if (interaction.isCommand()) {
+        Logger.info('Command received', { command: interaction.commandName, user: interaction.user.username });
+        if (interaction.commandName === 'battleship') {
+            Logger.info('Battleship slash command received', { user: interaction.user.username });
+            const result = await gameManager.startGame(interaction, "battleship");
+            if (!result) {
+                Logger.error('Failed to start battleship game');
+                await interaction.reply({ content: "Failed to start battleship game!", flags: MessageFlags.Ephemeral });
+            }
+        } else if (interaction.commandName === 'balatro') {
+            Logger.info('Balatro slash command received', { user: interaction.user.username });
+            const result = await gameManager.startGame(interaction, "balatro");
+            if (!result) {
+                Logger.error('Failed to start balatro game');
+                await interaction.reply({ content: "Failed to start balatro game!", flags: MessageFlags.Ephemeral });
+            }
+        }
+        return;
+    }
     
-    try {
-        await gameManager.handleButtonInteraction(interaction);
-    } catch (error) {
-        Logger.error('Game interaction error', error.message);
+    if (interaction.isButton()) {
+        try {
+            await gameManager.handleButtonInteraction(interaction);
+        } catch (error) {
+            Logger.error('Game interaction error', error.message);
+        }
     }
 });
 
@@ -238,6 +288,8 @@ client.on("messageCreate", async (message) => {
             return;
         }
     }
+
+
 
     if (message.content.startsWith("!cowsay play ")) {
         const args = message.content.slice(13).trim().split(' ');

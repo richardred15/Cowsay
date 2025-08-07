@@ -59,7 +59,7 @@ class Pagination {
         collector.on('collect', async (interaction) => {
             // Basic authorization check - only message author can use buttons
             if (interaction.user.id !== message.author.id) {
-                await interaction.reply({ content: 'Only the command user can navigate pages.', ephemeral: true });
+                await interaction.reply({ content: 'Only the command user can navigate pages.', flags: require('discord.js').MessageFlags.Ephemeral });
                 return;
             }
             

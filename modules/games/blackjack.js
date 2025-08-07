@@ -3,6 +3,7 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    MessageFlags,
 } = require("discord.js");
 const currencyManager = require("../currencyManager");
 
@@ -138,7 +139,7 @@ class Blackjack {
             ) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
-                    ephemeral: true,
+                    flags: MessageFlags.Ephemeral,
                 });
                 return true;
             }
@@ -185,7 +186,7 @@ class Blackjack {
             console.error("Error in startSinglePlayer:", error);
             await interaction.reply({
                 content: "An error occurred starting the game.",
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }

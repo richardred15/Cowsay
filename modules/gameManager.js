@@ -1,14 +1,16 @@
 const tictactoe = require('./games/tictactoe');
 const blackjack = require('./games/blackjack');
+const battleship = require('./games/battleship');
+const balatro = require('./games/balatro');
 
 class GameManager {
     constructor() {
         this.activeGames = new Map();
-        this.games = { tictactoe, blackjack };
+        this.games = { tictactoe, blackjack, battleship, balatro };
     }
 
     getAvailableGames() {
-        return ["tictactoe", "blackjack"];
+        return ["tictactoe", "blackjack", "battleship", "balatro"];
     }
 
     createGamesEmbed() {
@@ -25,6 +27,16 @@ class GameManager {
                 {
                     name: '⭕ Tic-Tac-Toe',
                     value: '`!cowsay play tictactoe` - Start a game\n`!cowsay play tictactoe @user` - Challenge someone',
+                    inline: false
+                },
+                {
+                    name: '🚢 Battleship',
+                    value: '`/battleship` - Create a new battleship game',
+                    inline: false
+                },
+                {
+                    name: '🃏 Balatro',
+                    value: '`/balatro` - Start a poker-based scoring game',
                     inline: false
                 },
                 {
@@ -131,6 +143,16 @@ class GameManager {
     async handleButtonInteraction(interaction) {
         const userId = interaction.user.id;
         
+        // Check for battleship interactions first
+        if (interaction.customId.startsWith('bs_')) {
+            return await battleship.handleInteraction(interaction, null, null, this);
+        }
+        
+        // Check for balatro interactions
+        if (interaction.customId.startsWith('bal_')) {
+            return await balatro.handleInteraction(interaction, null, null, this);
+        }
+        
         // Check for blackjack lobby interactions first (join/cancel/start)
         if (interaction.customId === 'bj_join' || interaction.customId === 'bj_cancel' || interaction.customId === 'bj_start' || interaction.customId.startsWith('bj_join_bet_')) {
             return await blackjack.handleInteraction(interaction, null, null, this);
@@ -145,7 +167,7 @@ class GameManager {
                     return await blackjack.handleViewHand(interaction, data, key, this);
                 }
             }
-            await interaction.reply({ content: "You're not in any active blackjack game!", ephemeral: true });
+            await interaction.reply({ content: "You're not in any active blackjack game!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
         
@@ -186,7 +208,7 @@ class GameManager {
         
         if (!gameData) {
             console.log(`DEBUG: No game found for user ${userId}. Active games:`, Array.from(this.activeGames.keys()));
-            await interaction.reply({ content: "No active game found!", ephemeral: true });
+            await interaction.reply({ content: "No active game found!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
 

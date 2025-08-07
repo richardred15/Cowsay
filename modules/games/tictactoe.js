@@ -32,7 +32,7 @@ class TicTacToe {
         const currentSymbol = gameData.currentPlayer;
         
         if ((currentSymbol === "X" && !isPlayer1) || (currentSymbol === "O" && !isPlayer2)) {
-            await interaction.reply({ content: "It's not your turn!", ephemeral: true });
+            await interaction.reply({ content: "It's not your turn!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
 
