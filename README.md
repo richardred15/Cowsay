@@ -157,9 +157,10 @@ npm start
 - Ante progression with increasing difficulty
 
 ### 🏓 Pong
-- Classic 2-player paddle game
+- Classic 2-player paddle game or single-player vs AI
 - 1 FPS strategic gameplay
 - Shared controls via Discord buttons
+- AI opponent with simple ball-tracking logic
 - First to 5 points wins
 
 ### ⭕ Tic-Tac-Toe

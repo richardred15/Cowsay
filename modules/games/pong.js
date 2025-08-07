@@ -64,6 +64,8 @@ class Pong {
         try {
             if (interaction.customId === "pong_join") {
                 await this.handleJoin(interaction, game);
+            } else if (interaction.customId === "pong_ai") {
+                await this.handleAI(interaction, game);
             } else if (interaction.customId === "pong_up") {
                 await this.handlePaddleMove(interaction, game, -1);
             } else if (interaction.customId === "pong_down") {
@@ -109,6 +111,30 @@ class Pong {
         await this.startCountdown(interaction, game);
     }
 
+    async handleAI(interaction, game) {
+        if (game.player2) {
+            await interaction.reply({
+                content: "❌ Game is full!",
+                flags: require("discord.js").MessageFlags.Ephemeral,
+            });
+            return;
+        }
+
+        if (game.player1.id === interaction.user.id) {
+            game.player2 = { id: "ai_player", name: "AI", paddle: 4, isAI: true };
+            game.phase = "countdown";
+
+            // Acknowledge the interaction immediately
+            await interaction.deferUpdate();
+            await this.startCountdown(interaction, game);
+        } else {
+            await interaction.reply({
+                content: "❌ Only the game creator can start AI mode!",
+                flags: require("discord.js").MessageFlags.Ephemeral,
+            });
+        }
+    }
+
     async handlePaddleMove(interaction, game, direction) {
         if (game.phase !== "playing") {
             await interaction.reply({
@@ -123,11 +149,11 @@ class Pong {
 
         if (game.player1.id === userId) {
             player = game.player1;
-        } else if (game.player2 && game.player2.id === userId) {
+        } else if (game.player2 && game.player2.id === userId && !game.player2.isAI) {
             player = game.player2;
         } else {
             await interaction.reply({
-                content: "❌ You are not in this game!",
+                content: "❌ You are not in this game or cannot control AI paddle!",
                 flags: require("discord.js").MessageFlags.Ephemeral,
             });
             return;
@@ -194,6 +220,21 @@ class Pong {
 
     updateBall(game) {
         if (game.phase !== "playing") return;
+
+        // AI logic for player 2
+        if (game.player2 && game.player2.isAI) {
+            const targetY = game.ball.y;
+            const currentY = game.player2.paddle;
+            
+            // Simple AI: move toward ball with some delay/error
+            if (Math.abs(targetY - currentY) > 0) {
+                if (targetY > currentY && currentY < this.height - 2) {
+                    game.player2.paddle = Math.min(this.height - 2, currentY + 1);
+                } else if (targetY < currentY && currentY > 1) {
+                    game.player2.paddle = Math.max(1, currentY - 1);
+                }
+            }
+        }
 
         // Move ball
         game.ball.x += game.ball.dx;
@@ -341,6 +382,10 @@ class Pong {
                     .setCustomId("pong_join")
                     .setLabel("Join Game")
                     .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId("pong_ai")
+                    .setLabel("Play vs AI")
+                    .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
                     .setCustomId("pong_up")
                     .setLabel("↑ Up")

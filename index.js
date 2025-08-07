@@ -95,7 +95,7 @@ client.once("ready", async () => {
     setInterval(() => {
         try {
             tagManager.cleanupOldData();
-            contextManager.cleanupOldData();
+            contextManager.cleanup();
             contextManager.cleanupAll();
             rateLimiter.cleanup();
         } catch (error) {
@@ -406,6 +406,29 @@ client.on("messageCreate", async (message) => {
         const args = message.content.slice(13).trim().split(" ");
         const gameName = args[0].toLowerCase();
         const opponent = message.mentions.users.first();
+        
+        // Handle pong ai command
+        if (gameName === 'pong' && args[1] === 'ai') {
+            const pong = require('./modules/games/pong');
+            const result = await pong.start(message);
+            if (result) {
+                // Auto-start AI game
+                const game = result.gameData;
+                game.player2 = { id: "ai_player", name: "AI", paddle: 4, isAI: true };
+                game.phase = "countdown";
+                
+                // Create fake interaction for countdown
+                const fakeInteraction = {
+                    editReply: async (options) => {
+                        const msg = await message.channel.messages.fetch(game.messageId);
+                        await msg.edit(options);
+                    }
+                };
+                
+                await pong.startCountdown(fakeInteraction, game);
+            }
+            return;
+        }
 
         if (await gameManager.startGame(message, gameName, opponent)) {
             return;

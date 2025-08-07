@@ -42,10 +42,10 @@ Discord bot built with Node.js and Discord.js v14. Primary functions: ASCII art 
 
 ### Database Integration
 - **database.js**: MySQL connection pool, schema management, migrations
-- **schema.json**: Table definitions with versioning
+- **schema.json**: Table definitions with versioning (current: v3)
 - Auto-creates database and tables on startup
 - Handles index creation with duplicate key error handling
-- Used for Balatro game persistence and currency system
+- Used for Balatro persistence, currency system, per-server config, rivals
 
 ## Game Implementations
 
@@ -97,7 +97,9 @@ Discord bot built with Node.js and Discord.js v14. Primary functions: ASCII art 
 
 ### Configuration
 - **Environment Variables**: All settings via .env file
-- **Dynamic Config**: Runtime toggles for auto-reply, intent detection
+- **Per-Server Config**: Database-backed auto-reply and intent detection settings
+- **Rivals System**: Per-server rival bot configuration with custom descriptions
+- **Dynamic Config**: Runtime toggles affect individual servers
 - **Validation**: Required vs optional settings with defaults
 
 ## File Structure

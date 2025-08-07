@@ -42,7 +42,7 @@ class GameManager {
                 },
                 {
                     name: '🏓 Pong',
-                    value: '`!cowsay play pong` - Classic paddle game\n• **2 players required** - Use "Join Game" button\n• Shared Up/Down controls for paddles\n• First to 5 points wins (1 FPS gameplay)',
+                    value: '`!cowsay play pong` - Classic paddle game\n`!cowsay play pong ai` - Single player vs AI\n• **Multiplayer**: Use "Join Game" or "Play vs AI" buttons\n• Shared Up/Down controls for paddles\n• First to 5 points wins (1 FPS gameplay)',
                     inline: false
                 },
                 {
