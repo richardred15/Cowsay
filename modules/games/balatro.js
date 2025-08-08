@@ -22,6 +22,7 @@ class Balatro {
             const gameData = {
                 id: gameId,
                 userId: interaction.user.id,
+                userName: interaction.user.displayName,
                 ante: 1,
                 chips: 300,
                 handsRemaining: 4,
@@ -31,7 +32,10 @@ class Balatro {
                 jokers: [],
                 blindData: { type: 'small', requirement: 300 },
                 selectedCards: [],
-                phase: 'playing'
+                phase: 'playing',
+                startTime: Date.now(),
+                serverId: interaction.guild?.id,
+                totalHands: 0
             };
 
             // Save to database
@@ -371,11 +375,19 @@ class Balatro {
             game.handsRemaining = 4;
             game.discardsRemaining = 3;
             game.phase = 'shop';
+            
+            // Check for high ante win condition
+            if (game.ante > 8) {
+                this.recordGameOutcome(game, 'win');
+            }
         }
         await this.saveGame(game);
     }
 
     async gameOver(interaction, game) {
+        // Record game outcome
+        this.recordGameOutcome(game, 'loss');
+        
         const embed = new EmbedBuilder()
             .setTitle('🃏 Game Over!')
             .setDescription(`Final Score: Ante ${game.ante}\nTotal Chips: ${game.chips}`)
@@ -499,6 +511,31 @@ class Balatro {
     async deleteGame(gameId) {
         const sql = 'DELETE FROM balatro_games WHERE id = ?';
         await database.query(sql, [gameId]);
+    }
+
+    recordGameOutcome(game, result) {
+        const gameStats = require('../gameStats');
+        
+        const winnerId = result === 'win' ? game.userId : 'game';
+        
+        const outcomeData = {
+            server_id: game.serverId || 'unknown',
+            game_type: 'balatro',
+            player1_id: game.userId,
+            player1_name: game.userName || 'Player',
+            player2_id: 'game',
+            player2_name: 'Balatro',
+            winner_id: winnerId,
+            game_duration: game.startTime ? Math.floor((Date.now() - game.startTime) / 1000) : null,
+            final_score: {
+                ante_reached: game.ante,
+                final_chips: game.chips,
+                hands_played: game.totalHands || 0
+            },
+            game_mode: 'single'
+        };
+        
+        gameStats.recordOutcome(outcomeData);
     }
 }
 

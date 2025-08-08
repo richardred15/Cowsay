@@ -731,6 +731,8 @@ class Blackjack {
             isSinglePlayer,
             dealerId,
             gameOver: false,
+            startTime: Date.now(),
+            serverId: null
         };
     }
 
@@ -1222,6 +1224,9 @@ class Blackjack {
             gameData.dealer.bust ? " (Bust)" : ""
         }`;
 
+        // Record game outcomes
+        this.recordGameOutcome(gameData, winners, losers, pushes);
+        
         // Add results to the final game embed
         finalGameEmbed.addFields({
             name: "🎊 Game Results 🪙",
@@ -1523,6 +1528,42 @@ class Blackjack {
     sanitizeText(text) {
         if (!text) return "Unknown";
         return text.replace(/[<>@#&!]/g, "").substring(0, 50);
+    }
+
+    recordGameOutcome(gameData, winners, losers, pushes) {
+        const gameStats = require('../gameStats');
+        
+        // Record outcome for each player
+        for (const player of gameData.players) {
+            let winnerId = null;
+            if (winners.some(w => w.includes(player.name))) {
+                winnerId = player.id;
+            } else if (pushes.some(p => p.includes(player.name))) {
+                winnerId = 'tie';
+            } else {
+                winnerId = 'dealer';
+            }
+            
+            const outcomeData = {
+                server_id: gameData.serverId || 'unknown',
+                game_type: 'blackjack',
+                player1_id: player.id,
+                player1_name: player.name,
+                player2_id: 'dealer',
+                player2_name: 'Dealer',
+                winner_id: winnerId,
+                game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+                final_score: {
+                    player_hand: player.score,
+                    dealer_hand: gameData.dealer.score,
+                    bet_amount: gameData.bets ? gameData.bets[player.id] : 0,
+                    blackjack: player.blackjack || false
+                },
+                game_mode: gameData.isSinglePlayer ? 'single' : 'multiplayer'
+            };
+            
+            gameStats.recordOutcome(outcomeData);
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 5,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -39,6 +39,43 @@
         "PRIMARY KEY (server_id, rival_id)": ""
       },
       "indexes": ["server_id"]
+    },
+    "server_role_permissions": {
+      "columns": {
+        "server_id": "VARCHAR(50) NOT NULL",
+        "role_id": "VARCHAR(50) NOT NULL",
+        "permission_level": "VARCHAR(20) NOT NULL",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        "PRIMARY KEY (server_id, role_id)": ""
+      },
+      "indexes": ["server_id"]
+    },
+    "game_outcomes": {
+      "columns": {
+        "id": "INT AUTO_INCREMENT PRIMARY KEY",
+        "server_id": "VARCHAR(50) NOT NULL",
+        "game_type": "VARCHAR(20) NOT NULL",
+        "player1_id": "VARCHAR(50) NOT NULL",
+        "player1_name": "VARCHAR(100) NOT NULL",
+        "player2_id": "VARCHAR(50)",
+        "player2_name": "VARCHAR(100)",
+        "winner_id": "VARCHAR(50)",
+        "game_duration": "INT",
+        "final_score": "JSON",
+        "game_mode": "VARCHAR(20)",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+      },
+      "indexes": ["server_id", "game_type", "player1_id", "player2_id"]
+    },
+    "user_preferences": {
+      "columns": {
+        "user_id": "VARCHAR(50) PRIMARY KEY",
+        "stats_opt_out": "BOOLEAN DEFAULT FALSE",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+      },
+      "indexes": []
     }
   }
 }

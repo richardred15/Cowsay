@@ -32,6 +32,8 @@ const responseCollapse = require("./modules/responseCollapse");
 const gameManager = require("./modules/gameManager");
 const currencyManager = require("./modules/currencyManager");
 const rivalManager = require("./modules/rivalManager");
+const discordPermissions = require("./modules/discordPermissions");
+const gameStats = require("./modules/gameStats");
 
 const client = new Client({
     intents: [
@@ -441,6 +443,11 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!clearleaderboard") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.MODERATOR))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.MODERATOR));
+            return;
+        }
+        
         const count = leaderboardHandler.clearAllPending();
         message.reply(
             `Cleared ${count} pending leaderboard(s) from all channels! 🧹`
@@ -453,6 +460,11 @@ client.on("messageCreate", async (message) => {
         const action = args[0]?.toLowerCase();
         
         if (action === 'add') {
+            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+                return;
+            }
+            
             const mention = message.mentions.users.first();
             if (!mention) {
                 message.reply('Please mention a user to add as a rival! Usage: `!cowsay rival add @user description`');
@@ -480,6 +492,11 @@ client.on("messageCreate", async (message) => {
         }
         
         if (action === 'remove') {
+            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+                return;
+            }
+            
             const mention = message.mentions.users.first();
             if (!mention) {
                 message.reply('Please mention a user to remove as a rival! Usage: `!cowsay rival remove @user`');
@@ -516,7 +533,263 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    if (message.content.startsWith("!cowsay perms ")) {
+        const args = message.content.slice(14).trim().split(' ');
+        const action = args[0]?.toLowerCase();
+        
+        if (action === 'setrole') {
+            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+                return;
+            }
+            
+            const permissionLevel = args[1]?.toLowerCase();
+            const role = message.mentions.roles.first();
+            
+            if (!permissionLevel || !role) {
+                message.reply('Usage: `!cowsay perms setrole <admin|moderator|helper> @role`');
+                return;
+            }
+            
+            if (!['admin', 'moderator', 'helper'].includes(permissionLevel)) {
+                message.reply('Permission level must be: admin, moderator, or helper');
+                return;
+            }
+            
+            const success = await discordPermissions.setRoleMapping(message.guild?.id, role.id, permissionLevel);
+            if (success) {
+                message.reply(`✅ Set role **${role.name}** to **${permissionLevel}** level.`);
+            } else {
+                message.reply('❌ Failed to set role mapping. Please try again.');
+            }
+            return;
+        }
+        
+        if (action === 'removerole') {
+            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+                return;
+            }
+            
+            const role = message.mentions.roles.first();
+            if (!role) {
+                message.reply('Usage: `!cowsay perms removerole @role`');
+                return;
+            }
+            
+            const success = await discordPermissions.removeRoleMapping(message.guild?.id, role.id);
+            if (success) {
+                message.reply(`✅ Removed permission mapping for role **${role.name}**.`);
+            } else {
+                message.reply('❌ That role has no custom mapping or removal failed.');
+            }
+            return;
+        }
+        
+        if (action === 'listroles') {
+            const roleMappings = await discordPermissions.getRoleMappings(message.guild?.id);
+            if (roleMappings.size === 0) {
+                message.reply('No custom role mappings configured. Using Discord default permissions.');
+                return;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🔐 Role Permission Mappings')
+                .setColor(0x5865f2)
+                .setDescription('Custom role mappings for this server:')
+                .setFooter({ text: 'Default: Owner=Admin, Administrator=Admin, Manage Server=Moderator, Manage Messages=Helper' });
+            
+            for (const [roleId, level] of roleMappings) {
+                const role = message.guild.roles.cache.get(roleId);
+                if (role) {
+                    embed.addFields({
+                        name: role.name,
+                        value: `**${level}** level`,
+                        inline: true
+                    });
+                }
+            }
+            
+            message.reply({ embeds: [embed] });
+            return;
+        }
+        
+        if (action === 'check') {
+            const mention = message.mentions.users.first();
+            if (!mention) {
+                message.reply('Usage: `!cowsay perms check @user`');
+                return;
+            }
+            
+            const targetMember = message.guild.members.cache.get(mention.id);
+            if (!targetMember) {
+                message.reply('User not found in this server.');
+                return;
+            }
+            
+            // Create fake message object for permission checking
+            const fakeMessage = { member: targetMember, guild: message.guild };
+            const userLevel = await discordPermissions.getUserPermissionLevel(fakeMessage);
+            
+            message.reply(`**${mention.username}** has **${userLevel}** permission level.`);
+            return;
+        }
+        
+        message.reply('Usage: `!cowsay perms setrole <level> @role`, `!cowsay perms removerole @role`, `!cowsay perms listroles`, or `!cowsay perms check @user`');
+        return;
+    }
+
+    if (message.content === "!cowsay myperms") {
+        const userLevel = await discordPermissions.getUserPermissionLevel(message);
+        message.reply(`You have **${userLevel}** permission level in this server.`);
+        return;
+    }
+
+    if (message.content === "!cowsay stats") {
+        const stats = await gameStats.getPersonalStats(message.author.id);
+        
+        if (Object.keys(stats).length === 0) {
+            message.reply('You haven\'t played any games yet! 🎮');
+            return;
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`📊 ${message.author.displayName}'s Game Statistics`)
+            .setColor(0x00ae86)
+            .setThumbnail(message.author.displayAvatarURL());
+        
+        for (const [gameType, data] of Object.entries(stats)) {
+            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+            embed.addFields({
+                name: `${gameEmoji[gameType] || '🎮'} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`,
+                value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
+                inline: true
+            });
+        }
+        
+        embed.setFooter({ text: 'Use !cowsay stats @user to view someone else\'s stats' });
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay stats ")) {
+        const mention = message.mentions.users.first();
+        if (!mention) {
+            message.reply('Please mention a user! Usage: `!cowsay stats @user`');
+            return;
+        }
+        
+        const stats = await gameStats.getPersonalStats(mention.id);
+        
+        if (Object.keys(stats).length === 0) {
+            message.reply(`${mention.displayName} hasn't played any games yet! 🎮`);
+            return;
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`📊 ${mention.displayName}'s Game Statistics`)
+            .setColor(0x00ae86)
+            .setThumbnail(mention.displayAvatarURL());
+        
+        for (const [gameType, data] of Object.entries(stats)) {
+            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+            embed.addFields({
+                name: `${gameEmoji[gameType] || '🎮'} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`,
+                value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
+                inline: true
+            });
+        }
+        
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay serverstats") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.MODERATOR))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.MODERATOR));
+            return;
+        }
+        
+        const stats = await gameStats.getServerStats(message.guild?.id);
+        
+        if (stats.length === 0) {
+            message.reply('No games have been played on this server yet! 🎮');
+            return;
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`📊 ${message.guild.name} Server Statistics`)
+            .setColor(0x5865f2)
+            .setThumbnail(message.guild.iconURL());
+        
+        stats.forEach(game => {
+            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+            embed.addFields({
+                name: `${gameEmoji[game.game_type] || '🎮'} ${game.game_type.charAt(0).toUpperCase() + game.game_type.slice(1)}`,
+                value: `**${game.total_games}** games played\n**${game.unique_players}** unique players${game.avg_duration ? `\n**${Math.round(game.avg_duration)}s** avg duration` : ''}`,
+                inline: true
+            });
+        });
+        
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay topplayers") {
+        const topPlayers = await gameStats.getTopPlayers(message.guild?.id);
+        
+        if (topPlayers.length === 0) {
+            message.reply('No games have been played on this server yet! 🎮');
+            return;
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`🏆 ${message.guild.name} Top Players`)
+            .setColor(0xffd700)
+            .setDescription(topPlayers.map((player, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                return `${medal} **${player.username}** - ${player.wins} wins (${player.win_rate}% win rate, ${player.total_games} games)`;
+            }).join('\n'))
+            .setFooter({ text: 'Based on total wins across all games' });
+        
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay optstats") {
+        const args = message.content.split(' ');
+        const action = args[2]?.toLowerCase();
+        
+        if (action === 'out') {
+            const success = await gameStats.setOptOut(message.author.id, true);
+            if (success) {
+                message.reply('✅ You have opted out of game statistics tracking. Your existing stats have been deleted.');
+            } else {
+                message.reply('❌ Failed to opt out. Please try again.');
+            }
+            return;
+        }
+        
+        if (action === 'in') {
+            const success = await gameStats.setOptOut(message.author.id, false);
+            if (success) {
+                message.reply('✅ You have opted back into game statistics tracking.');
+            } else {
+                message.reply('❌ Failed to opt in. Please try again.');
+            }
+            return;
+        }
+        
+        message.reply('Usage: `!cowsay optstats out` to opt out or `!cowsay optstats in` to opt back in.');
+        return;
+    }
+
     if (message.content === "!toggleautoreply") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
         const enabled = await autoReply.toggle(message.guild?.id);
         message.reply(
             `Auto-reply to "cowsay" mentions is now ${
@@ -527,6 +800,11 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!toggleintent") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
         const mode = await intentDetector.toggle(message.guild?.id);
         const modeEmojis = { LLM: "🧠", EMBEDDING: "🔍", REGEX: "⚙️" };
         message.reply(

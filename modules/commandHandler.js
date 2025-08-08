@@ -41,12 +41,22 @@ class CommandHandler {
                 },
                 {
                     name: '🎯 Other Commands',
-                    value: '`!characters` - View all ASCII characters\n`!clearleaderboard` - Clear leaderboard cache\n`!cowsay help rivals` - Learn about the rivals system',
+                    value: '`!characters` - View all ASCII characters\n`!clearleaderboard` - Clear leaderboard cache (Moderator)\n`!cowsay help rivals` - Learn about the rivals system',
                     inline: false
                 },
                 {
-                    name: '⚙️ Settings',
+                    name: '⚙️ Settings (Admin)',
                     value: '`!toggleautoreply` - Toggle auto-reply to "cowsay" mentions\n`!toggleintent` - Cycle intent detection (Embedding/Regex/LLM)\n`!showconfig` - Show current configuration',
+                    inline: false
+                },
+                {
+                    name: '🔐 Permissions',
+                    value: '`!cowsay perms setrole <level> @role` - Map role to permission level (Admin)\n`!cowsay perms listroles` - Show role mappings\n`!cowsay myperms` - Check your permission level',
+                    inline: false
+                },
+                {
+                    name: '📊 Statistics',
+                    value: '`!cowsay stats` - Your game statistics\n`!cowsay stats @user` - View someone else\'s stats\n`!cowsay serverstats` - Server statistics (Moderator)\n`!cowsay topplayers` - Server leaderboard\n`!cowsay optstats out/in` - Opt out/in of tracking',
                     inline: false
                 }
             )

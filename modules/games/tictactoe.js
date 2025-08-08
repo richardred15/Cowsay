@@ -13,7 +13,9 @@ class TicTacToe {
             winner: null,
             isMultiplayer: !!opponent,
             player1: { id: userId, name: message.author.displayName, symbol: "X" },
-            player2: opponent ? { id: opponent.id, name: opponent.displayName, symbol: "O" } : { name: "Cowsay", symbol: "O" }
+            player2: opponent ? { id: opponent.id, name: opponent.displayName, symbol: "O" } : { name: "Cowsay", symbol: "O" },
+            startTime: Date.now(),
+            serverId: message.guild?.id
         };
 
         const embed = this.createEmbed(gameData);
@@ -45,6 +47,11 @@ class TicTacToe {
         if (!gameData.gameOver && !gameData.isMultiplayer) {
             this.makeBotMove(gameData);
             this.checkGameEnd(gameData);
+        }
+        
+        // Record game outcome if game ended
+        if (gameData.gameOver) {
+            this.recordGameOutcome(gameData);
         }
 
         const embed = this.createEmbed(gameData);
@@ -172,6 +179,37 @@ class TicTacToe {
             gameData.gameOver = true;
             gameData.winner = null;
         }
+    }
+
+    recordGameOutcome(gameData) {
+        const gameStats = require('../gameStats');
+        
+        let winnerId = null;
+        if (gameData.winner === 'X') {
+            winnerId = gameData.player1.id;
+        } else if (gameData.winner === 'O') {
+            winnerId = gameData.isMultiplayer ? gameData.player2.id : 'ai_player';
+        } else {
+            winnerId = 'tie';
+        }
+        
+        const outcomeData = {
+            server_id: gameData.serverId || 'unknown',
+            game_type: 'tictactoe',
+            player1_id: gameData.player1.id,
+            player1_name: gameData.player1.name,
+            player2_id: gameData.isMultiplayer ? gameData.player2.id : 'ai_player',
+            player2_name: gameData.player2.name,
+            winner_id: winnerId,
+            game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+            final_score: {
+                board_state: gameData.board,
+                moves_made: gameData.board.filter(cell => cell !== null).length
+            },
+            game_mode: gameData.isMultiplayer ? 'multiplayer' : 'vs_ai'
+        };
+        
+        gameStats.recordOutcome(outcomeData);
     }
 }
 

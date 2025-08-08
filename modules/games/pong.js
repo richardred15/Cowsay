@@ -19,6 +19,8 @@ class Pong {
         const gameData = {
             type: "pong",
             phase: "waiting",
+            serverId: message.guild?.id,
+            startTime: null,
             player1: {
                 id: message.author.id,
                 name: message.author.displayName,
@@ -193,6 +195,7 @@ class Pong {
             } else {
                 clearInterval(countdownInterval);
                 game.phase = "playing";
+                game.startTime = Date.now(); // Record game start time
                 this.startGameLoop(interaction, game);
             }
         }, 1000);
@@ -278,6 +281,9 @@ class Pong {
         // Check win condition
         if (game.scores.player1 >= 5 || game.scores.player2 >= 5) {
             game.phase = "ended";
+            
+            // Record game outcome
+            this.recordGameOutcome(game);
         }
     }
 
@@ -438,6 +444,32 @@ class Pong {
             if (game === gameData) return key;
         }
         return null;
+    }
+
+    recordGameOutcome(game) {
+        if (!game.player2) return; // Need both players
+        
+        const gameStats = require('../gameStats');
+        const winner = game.scores.player1 >= 5 ? game.player1.id : game.player2.id;
+        const gameMode = game.player2.isAI ? 'vs_ai' : 'multiplayer';
+        
+        const outcomeData = {
+            server_id: game.serverId || 'unknown',
+            game_type: 'pong',
+            player1_id: game.player1.id,
+            player1_name: game.player1.name,
+            player2_id: game.player2.id,
+            player2_name: game.player2.name,
+            winner_id: winner,
+            game_duration: game.startTime ? Math.floor((Date.now() - game.startTime) / 1000) : null,
+            final_score: {
+                player1_score: game.scores.player1,
+                player2_score: game.scores.player2
+            },
+            game_mode: gameMode
+        };
+        
+        gameStats.recordOutcome(outcomeData);
     }
 }
 

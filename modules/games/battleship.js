@@ -28,7 +28,9 @@ class Battleship {
                         channelId: interaction.channel.id,
                         messageId: null,
                         player2Claimed: false,
-                        lastHitPlayer: null
+                        lastHitPlayer: null,
+                        startTime: Date.now(),
+                        serverId: interaction.guild?.id
                     };
 
                     this.activeGames.set(gameKey, gameData);
@@ -160,6 +162,9 @@ class Battleship {
                 if (gameData.lastHitPlayer && gameData.lastHitPlayer !== 'unknown') {
                     title += ` Winner: Player ${gameData.lastHitPlayer}`;
                 }
+                
+                // Record game outcome
+                this.recordGameOutcome(gameData, updateMessage);
 
                 // Clean up
                 battleshipClient.unsubscribe(gameData.gameId);
@@ -182,6 +187,31 @@ class Battleship {
         } catch (error) {
             Logger.error('Failed to update battleship embed', error.message);
         }
+    }
+
+    recordGameOutcome(gameData, updateMessage) {
+        const gameStats = require('../gameStats');
+        
+        // For battleship, we don't have specific player info, so we'll use generic data
+        const winnerId = gameData.lastHitPlayer === '1' ? 'player1' : gameData.lastHitPlayer === '2' ? 'player2' : 'unknown';
+        
+        const outcomeData = {
+            server_id: gameData.serverId || 'unknown',
+            game_type: 'battleship',
+            player1_id: gameData.creator,
+            player1_name: 'Player 1',
+            player2_id: 'player2',
+            player2_name: 'Player 2',
+            winner_id: winnerId,
+            game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+            final_score: {
+                game_id: gameData.gameId,
+                winner_player: gameData.lastHitPlayer
+            },
+            game_mode: 'multiplayer'
+        };
+        
+        gameStats.recordOutcome(outcomeData);
     }
 }
 
