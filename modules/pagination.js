@@ -83,6 +83,90 @@ class Pagination {
             response.edit({ components: [] }).catch(() => {});
         });
     }
+    
+    static async createEmbedPagination(message, embeds, title = 'Pages') {
+        if (!embeds || embeds.length === 0) {
+            return message.reply('No content to display.');
+        }
+        
+        let currentPage = 0;
+        
+        const generateButtons = (page) => {
+            return new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('prev')
+                        .setLabel('◀')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('next')
+                        .setLabel('▶')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === embeds.length - 1)
+                );
+        };
+        
+        // Update embed with page info
+        const updateEmbed = (embed, page) => {
+            const updatedEmbed = EmbedBuilder.from(embed);
+            const currentFooter = embed.data.footer?.text || '';
+            const pageInfo = `Page ${page + 1} of ${embeds.length}`;
+            
+            if (currentFooter) {
+                updatedEmbed.setFooter({ 
+                    text: `${currentFooter} • ${pageInfo}`,
+                    iconURL: embed.data.footer?.icon_url
+                });
+            } else {
+                updatedEmbed.setFooter({ text: pageInfo });
+            }
+            
+            return updatedEmbed;
+        };
+        
+        if (embeds.length === 1) {
+            return message.reply({ embeds: [updateEmbed(embeds[0], 0)] });
+        }
+        
+        const response = await message.reply({
+            embeds: [updateEmbed(embeds[currentPage], currentPage)],
+            components: [generateButtons(currentPage)]
+        });
+        
+        const collector = response.createMessageComponentCollector({
+            time: 60000
+        });
+        
+        collector.on('collect', async (interaction) => {
+            if (interaction.user.id !== message.author.id) {
+                await interaction.reply({ 
+                    content: 'Only the command user can navigate pages.', 
+                    flags: require('discord.js').MessageFlags.Ephemeral 
+                });
+                return;
+            }
+            
+            try {
+                if (interaction.customId === 'prev' && currentPage > 0) {
+                    currentPage--;
+                } else if (interaction.customId === 'next' && currentPage < embeds.length - 1) {
+                    currentPage++;
+                }
+                
+                await interaction.update({
+                    embeds: [updateEmbed(embeds[currentPage], currentPage)],
+                    components: [generateButtons(currentPage)]
+                });
+            } catch (error) {
+                console.error('Embed pagination interaction error:', error);
+            }
+        });
+        
+        collector.on('end', () => {
+            response.edit({ components: [] }).catch(() => {});
+        });
+    }
 }
 
 module.exports = Pagination;

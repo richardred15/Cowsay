@@ -19,81 +19,131 @@ class CommandHandler {
         const isAdmin = userLevel === 'admin' || userLevel === 'owner';
         const isModerator = isAdmin || userLevel === 'moderator';
         
-        const embed = new EmbedBuilder()
-            .setTitle('🐄 Cowsay Bot Commands')
-            .setColor(0x00AE86)
-            .addFields(
-                {
-                    name: '💬 Chat Commands',
-                    value: '`!ask <question>` - Ask me anything\n`!chat <question>` - Start a conversation\n`!clear` - Clear your chat context',
-                    inline: true
-                },
-                {
-                    name: '🎭 Fun Commands', 
-                    value: '`!cowsay <text>` - Make the cow speak\n`!<character>say <text>` - Use other ASCII characters\n`!joke` - Random dad joke\n`!rimshot` - Ba-dum-tss!',
-                    inline: true
-                },
-                {
-                    name: '🎮 Games',
-                    value: '`!cowsay games` - View available games\n`!cowsay play <game>` - Start a game\n`/battleship` - Battleship (slash command)\n`/balatro` - Balatro poker (slash command)\n`!blackjack <mode> <bet>` - Quick blackjack',
-                    inline: true
-                },
-                {
-                    name: '🪙 Currency System',
-                    value: '`!cowsay balance` - Check your coins\n`!cowsay daily` - Claim daily bonus\n`!cowsay leaderboard` - Top coin holders\n`!cowsay transactions` - View transaction history\n`!cowsay shop` - Browse premium items\n`!cowsay help coins` - Learn about earning coins',
-                    inline: true
-                },
-                {
-                    name: '🎯 Other Commands',
-                    value: '`!characters` - View all ASCII characters\n`!cowsay help rivals` - Learn about the rivals system\n`!cowsay stats` - Your game statistics\n`!cowsay myperms` - Check your permission level',
-                    inline: false
-                },
-                {
-                    name: '🛒 Shop System',
-                    value: '`!cowsay shop` - Browse premium characters & boosts\n`!cowsay help shop` - Learn about the shop system\nClick buttons in shop to purchase items!',
-                    inline: false
-                }
-            );
+        // Create help categories
+        const categories = [
+            {
+                title: '💬 Chat Commands',
+                commands: [
+                    '`!ask <question>` - Ask me anything',
+                    '`!chat <question>` - Start a conversation thread',
+                    '`!clear` - Clear your chat context'
+                ]
+            },
+            {
+                title: '🎭 Fun Commands',
+                commands: [
+                    '`!cowsay <text>` - Make the cow speak',
+                    '`!<character>say <text>` - Use other ASCII characters',
+                    '`!characters` - Browse all ASCII characters',
+                    '`!joke` - Random dad joke',
+                    '`!rimshot` - Ba-dum-tss!'
+                ]
+            },
+            {
+                title: '🎮 Games',
+                commands: [
+                    '`!cowsay games` - View available games',
+                    '`!cowsay play <game>` - Start a game',
+                    '`!cowsay join` - Join multiplayer lobbies',
+                    '`/battleship` - Battleship (slash command)',
+                    '`/balatro` - Balatro poker (slash command)',
+                    '`!blackjack <mode> <bet>` - Quick blackjack'
+                ]
+            },
+            {
+                title: '🪙 Currency & Shop',
+                commands: [
+                    '`!cowsay balance` - Check your coins & active boosts',
+                    '`!cowsay daily` - Claim daily bonus',
+                    '`!cowsay shop` - Browse premium characters & boosts',
+                    '`!cowsay leaderboard` - Top coin holders',
+                    '`!cowsay transactions` - View transaction history',
+                    '`!cowsay help coins` - Learn about earning coins',
+                    '`!cowsay help shop` - Learn about the shop system'
+                ]
+            },
+            {
+                title: '📊 Statistics',
+                commands: [
+                    '`!cowsay stats` - Your personal game statistics',
+                    '`!cowsay stats @user` - View someone else\'s stats',
+                    '`!cowsay optstats out/in` - Opt out/in of statistics tracking',
+                    '`!cowsay myperms` - Check your permission level'
+                ]
+            }
+        ];
         
         if (isModerator) {
-            embed.addFields({
-                name: '📊 Moderator Commands',
-                value: '`!cowsay serverstats` - Server statistics\n`!cowsay topplayers` - Server leaderboard\n`!clearleaderboard` - Clear leaderboard cache',
-                inline: false
+            categories.push({
+                title: '📊 Moderator Commands',
+                commands: [
+                    '`!cowsay serverstats` - Server game statistics',
+                    '`!cowsay topplayers` - Server leaderboard',
+                    '`!clearleaderboard` - Clear leaderboard cache'
+                ]
             });
         }
         
         if (isAdmin) {
-            embed.addFields(
+            categories.push(
                 {
-                    name: '🔥 Rivals (Admin)',
-                    value: '`!cowsay rival add @user description` - Add a rival\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals',
-                    inline: false
+                    title: '🔥 Rivals System (Admin)',
+                    commands: [
+                        '`!cowsay rival add @user <description>` - Add a rival bot',
+                        '`!cowsay rival remove @user` - Remove a rival',
+                        '`!cowsay rival list` - Show all configured rivals',
+                        '`!cowsay help rivals` - Learn about rivals system'
+                    ]
                 },
                 {
-                    name: '⚙️ Settings (Admin)',
-                    value: '`!toggleautoreply` - Toggle auto-reply\n`!toggleintent` - Cycle intent detection\n`!showconfig` - Show configuration',
-                    inline: false
+                    title: '⚙️ Server Settings (Admin)',
+                    commands: [
+                        '`!toggleautoreply` - Toggle auto-reply to "cowsay" mentions',
+                        '`!toggleintent` - Cycle intent detection modes',
+                        '`!showconfig` - Show current server configuration'
+                    ]
                 },
                 {
-                    name: '🔐 Permissions (Admin)',
-                    value: '`!cowsay perms setrole <level> @role` - Map role\n`!cowsay perms listroles` - Show mappings\n`!cowsay perms check @user` - Check permissions',
-                    inline: false
+                    title: '🔐 Permissions (Admin)',
+                    commands: [
+                        '`!cowsay perms setrole <level> @role` - Map Discord role to permission level',
+                        '`!cowsay perms listroles` - Show role mappings',
+                        '`!cowsay perms check @user` - Check user permission level'
+                    ]
                 },
                 {
-                    name: '🔧 Admin Commands',
-                    value: '`!cowsay admin help` - View all admin commands\n`!cowsay admin addcoins @user <amount>` - Add coins\n`!cowsay admin transactions` - View all transactions',
-                    inline: false
+                    title: '🔧 Admin Tools',
+                    commands: [
+                        '`!cowsay admin help` - View detailed admin commands',
+                        '`!cowsay admin addcoins @user <amount>` - Add coins to user',
+                        '`!cowsay admin removecoins @user <amount>` - Remove coins',
+                        '`!cowsay admin balance @user` - Check any user\'s balance',
+                        '`!cowsay admin transactions` - View all transactions'
+                    ]
                 }
             );
         }
         
-        embed.setFooter({ 
-            text: `${characterManager.getCharacters().length} ASCII characters available • Use !characters to browse them`,
-            iconURL: message.author.displayAvatarURL()
-        }).setTimestamp();
+        // Create paginated help
+        const pages = categories.map(category => {
+            const embed = new EmbedBuilder()
+                .setTitle('🐄 Cowsay Bot Help')
+                .setColor(0x00AE86)
+                .addFields({
+                    name: category.title,
+                    value: category.commands.join('\n'),
+                    inline: false
+                })
+                .setFooter({ 
+                    text: `${characterManager.getCharacters().length} ASCII characters available • Your permission level: ${userLevel}`,
+                    iconURL: message.author.displayAvatarURL()
+                })
+                .setTimestamp();
+            
+            return embed;
+        });
         
-        message.reply({ embeds: [embed] });
+        await Pagination.createEmbedPagination(message, pages, 'Help Categories');
         return true;
     }
 

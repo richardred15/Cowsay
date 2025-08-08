@@ -35,6 +35,7 @@ const rivalManager = require("./modules/rivalManager");
 const discordPermissions = require("./modules/discordPermissions");
 const gameStats = require("./modules/gameStats");
 const shopManager = require("./modules/shopManager");
+const Pagination = require("./modules/pagination");
 
 const client = new Client({
     intents: [
@@ -417,59 +418,61 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!cowsay leaderboard") {
-        const leaderboard = await currencyManager.getLeaderboard();
+        const leaderboard = await currencyManager.getLeaderboard(50); // Get more entries
         if (leaderboard.length === 0) {
             message.reply("No players found! 🪙");
             return;
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle("🏆 Coin Leaderboard")
-            .setColor(0xffd700)
-            .setDescription(
-                leaderboard
-                    .map((player, index) => {
-                        const medal =
-                            index === 0
-                                ? "🥇"
-                                : index === 1
-                                ? "🥈"
-                                : index === 2
-                                ? "🥉"
-                                : `${index + 1}.`;
-                        return `${medal} <@${player.userId}>: **${player.balance}** coins`;
-                    })
-                    .join("\n")
-            )
-            .setFooter({ text: "Play games to earn more coins!" });
+        const entries = leaderboard.map((player, index) => {
+            const medal =
+                index === 0
+                    ? "🥇"
+                    : index === 1
+                    ? "🥈"
+                    : index === 2
+                    ? "🥉"
+                    : `${index + 1}.`;
+            return `${medal} <@${player.userId}>: **${player.balance}** coins`;
+        });
 
-        message.reply({ embeds: [embed] });
+        if (entries.length <= 10) {
+            const embed = new EmbedBuilder()
+                .setTitle("🏆 Coin Leaderboard")
+                .setColor(0xffd700)
+                .setDescription(entries.join("\n"))
+                .setFooter({ text: "Play games to earn more coins!" });
+            message.reply({ embeds: [embed] });
+        } else {
+            await Pagination.create(message, "Coin Leaderboard", entries, 10);
+        }
         return;
     }
 
     if (message.content === "!cowsay transactions") {
-        const history = await currencyManager.getTransactionHistory(message.author.id);
+        const history = await currencyManager.getTransactionHistory(message.author.id, 25);
         if (history.length === 0) {
             message.reply("No transaction history found! 📊");
             return;
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle(`📊 ${message.author.displayName}'s Transaction History`)
-            .setColor(0x00ae86)
-            .setDescription(
-                history
-                    .map((tx, index) => {
-                        const sign = tx.amount >= 0 ? "+" : "";
-                        const date = new Date(tx.created_at).toLocaleDateString();
-                        const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('participation') ? '🎖️' : '🪙';
-                        return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
-                    })
-                    .join("\n\n")
-            )
-            .setFooter({ text: "Last 10 transactions" });
+        const entries = history.map((tx, index) => {
+            const sign = tx.amount >= 0 ? "+" : "";
+            const date = new Date(tx.created_at).toLocaleDateString();
+            const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('participation') ? '🎖️' : '🪙';
+            return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
+        });
 
-        message.reply({ embeds: [embed] });
+        if (entries.length <= 5) {
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 ${message.author.displayName}'s Transaction History`)
+                .setColor(0x00ae86)
+                .setDescription(entries.join("\n\n"))
+                .setFooter({ text: `Last ${entries.length} transactions` });
+            message.reply({ embeds: [embed] });
+        } else {
+            await Pagination.create(message, `${message.author.displayName}'s Transactions`, entries, 5);
+        }
         return;
     }
 
