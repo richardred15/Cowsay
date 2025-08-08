@@ -18,20 +18,7 @@ class Logger {
                 }
             }
             
-            // Use appropriate console method based on level
-            switch (level.toLowerCase()) {
-                case 'error':
-                    console.error(logEntry);
-                    break;
-                case 'warn':
-                    console.warn(logEntry);
-                    break;
-                case 'info':
-                    console.info(logEntry);
-                    break;
-                default:
-                    console.log(logEntry);
-            }
+            console.log(logEntry);
         } catch (error) {
             // Fallback logging without sanitization if all else fails
             console.log(`[${new Date().toISOString()}] LOGGER_ERROR: ${error.message} | Original: ${message}`);
