@@ -73,6 +73,10 @@ describe('SQL Injection Prevention', () => {
     const validUserId = '123456789';
     await currencyManager.awardCoins(validUserId, 50, 'Test reward');
     
+    // Verify baseline transaction was created
+    const baselineTransactions = await currencyManager.getTransactionHistory(validUserId, 10);
+    expect(baselineTransactions.length).toBeGreaterThan(0); // Ensure test setup worked
+    
     for (const maliciousInput of maliciousInputs) {
       // Test getTransactionHistory with malicious input
       const transactions = await currencyManager.getTransactionHistory(maliciousInput, 10);
