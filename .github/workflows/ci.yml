@@ -179,4 +179,4 @@ jobs:
               if: always()
               with:
                   name: performance-report
-                  path: tests/reports/performance.json
+                  path: tests/performance/reports/performance.json

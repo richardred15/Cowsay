@@ -94,7 +94,7 @@ class PerformanceRunner {
     console.log('\n📊 Performance Summary:');
     console.log(`Database avg response: ${this.results.tests.database?.averageResponseTime || 'N/A'}ms`);
     console.log(`Currency throughput: ${this.results.tests.currency?.throughput || 'N/A'} ops/sec`);
-    console.log(`Game memory usage: ${this.results.tests.games?.memoryUsage || 'N/A'}MB`);
+    console.log(`Game memory usage: ${this.results.tests.games?.memoryUsage?.heapUsedMB || 'N/A'}MB`);
     console.log(`Report saved to: ${reportPath}`);
   }
 }

@@ -55,47 +55,113 @@ class Database {
 
     async runMigrations() {
         try {
-            // Create tables from schema
-            for (const [tableName, tableSchema] of Object.entries(this.schema.tables)) {
-                const columns = Object.entries(tableSchema.columns)
-                    .map(([name, definition]) => `${name} ${definition}`)
-                    .join(', ');
-
-                const createTableSQL = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns})`;
-                await this.query(createTableSQL);
-
-                // Create indexes
-                if (tableSchema.indexes) {
-                    for (const indexColumn of tableSchema.indexes) {
-                        const indexName = `idx_${tableName}_${indexColumn}`;
-                        try {
-                            // Check if index already exists
-                            const [existingIndexes] = await this.pool.execute(
-                                'SELECT COUNT(*) as count FROM information_schema.statistics WHERE table_schema = ? AND table_name = ? AND index_name = ?',
-                                [process.env.DB_NAME || 'cowsay', tableName, indexName]
-                            );
-                            
-                            if (existingIndexes[0].count === 0) {
-                                const createIndexSQL = `CREATE INDEX ${indexName} ON ${tableName} (${indexColumn})`;
-                                await this.queryWithoutLogging(createIndexSQL);
-                            }
-                        } catch (error) {
-                            // Silently ignore duplicate key errors - index already exists
-                            if (!error.message.includes('Duplicate key name')) {
-                                Logger.error(`Failed to create index ${indexName}:`, error.message);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Run version-specific migrations
-            if (this.schema.version === 10) {
+            // Ensure all tables and columns match schema
+            await this.ensureSchema();
+            
+            // Run version-specific data migrations
+            if (this.schema.version >= 10) {
                 await this.migrateToV10();
             }
         } catch (error) {
             Logger.error('Migration failed', error.message);
             throw error;
+        }
+    }
+
+    async ensureSchema() {
+        for (const [tableName, tableSchema] of Object.entries(this.schema.tables)) {
+            // Ensure table exists
+            await this.ensureTable(tableName, tableSchema);
+            
+            // Ensure all columns exist with correct types
+            for (const [columnName, definition] of Object.entries(tableSchema.columns)) {
+                if (columnName.includes('PRIMARY KEY') || columnName.includes('UNIQUE KEY')) {
+                    continue; // Skip constraint definitions
+                }
+                await this.ensureColumn(tableName, columnName, definition);
+            }
+            
+            // Create indexes
+            if (tableSchema.indexes) {
+                for (const indexColumn of tableSchema.indexes) {
+                    await this.ensureIndex(tableName, indexColumn);
+                }
+            }
+        }
+    }
+
+    async ensureTable(tableName, tableSchema) {
+        const columns = Object.entries(tableSchema.columns)
+            .map(([name, definition]) => `${name} ${definition}`)
+            .join(', ');
+
+        const createTableSQL = `CREATE TABLE IF NOT EXISTS ${tableName} (${columns})`;
+        await this.query(createTableSQL);
+    }
+
+    async ensureColumn(tableName, columnName, expectedDefinition) {
+        try {
+            // Get current column info
+            const [columns] = await this.pool.execute(`
+                SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = ? AND COLUMN_NAME = ?
+            `, [tableName, columnName]);
+            
+            if (columns.length === 0) {
+                // Column doesn't exist - ADD it
+                await this.pool.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${expectedDefinition}`);
+                Logger.info(`Added column ${columnName} to ${tableName}`);
+            } else {
+                // Column exists - check if definition matches
+                const current = columns[0];
+                if (!this.definitionsMatch(current, expectedDefinition)) {
+                    // MODIFY existing column (preserves data)
+                    await this.pool.execute(`ALTER TABLE ${tableName} MODIFY COLUMN ${columnName} ${expectedDefinition}`);
+                    Logger.info(`Modified column ${columnName} in ${tableName}`);
+                }
+            }
+        } catch (error) {
+            Logger.error(`Failed to ensure column ${columnName} in ${tableName}:`, error.message);
+            throw error;
+        }
+    }
+
+    definitionsMatch(current, expected) {
+        const currentType = current.COLUMN_TYPE.toUpperCase();
+        const expectedUpper = expected.toUpperCase();
+        
+        // Handle common type conversions
+        if (currentType.includes('DATETIME') && expectedUpper.includes('TIMESTAMP')) {
+            return false; // Needs conversion
+        }
+        
+        // Extract base type from expected definition
+        const expectedType = expectedUpper.split(' ')[0];
+        
+        return currentType.includes(expectedType);
+    }
+
+    async ensureIndex(tableName, indexColumn) {
+        const indexName = `idx_${tableName}_${indexColumn}`;
+        try {
+            // Check if index already exists
+            const [existingIndexes] = await this.pool.execute(
+                'SELECT COUNT(*) as count FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+                [tableName, indexName]
+            );
+            
+            if (existingIndexes[0].count === 0) {
+                const createIndexSQL = `CREATE INDEX ${indexName} ON ${tableName} (${indexColumn})`;
+                await this.queryWithoutLogging(createIndexSQL);
+                Logger.info(`Created index ${indexName}`);
+            }
+        } catch (error) {
+            // Silently ignore duplicate key errors - index already exists
+            if (!error.message.includes('Duplicate key name')) {
+                Logger.error(`Failed to create index ${indexName}:`, error.message);
+            }
         }
     }
 
@@ -143,6 +209,8 @@ class Database {
             connection.release();
         }
     }
+
+
 
     async query(sql, params = []) {
         const connection = await this.pool.getConnection();
