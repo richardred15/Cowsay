@@ -149,6 +149,15 @@ class GameManager {
     async handleButtonInteraction(interaction) {
         const userId = interaction.user.id;
         
+        // Only handle game-related buttons, ignore pagination and other system buttons
+        const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_'];
+        const isGameButton = gameButtonPrefixes.some(prefix => interaction.customId.startsWith(prefix)) ||
+                            ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(interaction.customId);
+        
+        if (!isGameButton) {
+            return false; // Let other handlers process non-game buttons
+        }
+        
         // Check for battleship interactions first
         if (interaction.customId.startsWith('bs_')) {
             return await battleship.handleInteraction(interaction, null, null, this);

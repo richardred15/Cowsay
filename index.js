@@ -174,7 +174,14 @@ client.on("interactionCreate", async (interaction) => {
                 return;
             }
             
-            await gameManager.handleButtonInteraction(interaction);
+            // Try game manager first, if it doesn't handle it, let it fall through
+            const gameHandled = await gameManager.handleButtonInteraction(interaction);
+            if (gameHandled) {
+                return;
+            }
+            
+            // If not handled by game manager, it might be pagination or other system buttons
+            // These will be handled by their respective collectors, so we don't need to do anything
         } catch (error) {
             Logger.error("Button interaction error", error.message);
             if (!interaction.replied) {
