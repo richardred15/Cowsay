@@ -6,6 +6,11 @@ describe('SQL Injection Prevention', () => {
 
   beforeAll(async () => {
     await setupTestDatabase();
+    
+    // Initialize database module
+    const database = require('../../modules/database');
+    await database.init();
+    
     connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       port: process.env.DB_PORT,
