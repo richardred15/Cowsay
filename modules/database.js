@@ -72,9 +72,9 @@ class Database {
                             const createIndexSQL = `CREATE INDEX ${indexName} ON ${tableName} (${indexColumn})`;
                             await this.query(createIndexSQL);
                         } catch (error) {
-                            // Index already exists, ignore error
+                            // Silently ignore duplicate key errors - index already exists
                             if (!error.message.includes('Duplicate key name')) {
-                                throw error;
+                                Logger.error(`Failed to create index ${indexName}:`, error.message);
                             }
                         }
                     }

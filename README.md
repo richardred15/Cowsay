@@ -26,6 +26,13 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 - **Transaction History**: Complete audit trail of all coin movements
 - **Game Statistics**: Comprehensive outcome tracking with privacy controls
 
+### 🛒 Shop System
+- **Premium Characters**: Unlock exclusive ASCII characters with coins
+- **Button Interface**: Click-to-purchase with affordability indicators
+- **Character Categories**: Free vs premium character separation
+- **Future Boosts**: Daily multipliers and streak protection (coming soon)
+- **Transaction Integration**: All purchases logged with full audit trail
+
 ### 🛠️ Utilities
 - **Card Renderer**: ASCII playing cards with custom emojis
 - **Pagination**: Browse large lists efficiently
@@ -130,11 +137,14 @@ npm start
 - `!blackjack <mode> <bet>` - Quick blackjack
 - `!cowsay join` - Join multiplayer lobbies
 
-### Currency
+### Currency & Shop
 - `!cowsay balance` - Check your coins
 - `!cowsay daily` - Claim daily bonus
 - `!cowsay leaderboard` - Top coin holders
 - `!cowsay transactions` - View transaction history
+- `!cowsay shop` - Browse premium items (button interface)
+- `!cowsay help coins` - Learn about earning coins
+- `!cowsay help shop` - Learn about the shop system
 
 ### Statistics
 - `!cowsay stats` - View your personal game statistics
@@ -142,9 +152,15 @@ npm start
 - `!cowsay optout` - Opt out of statistics tracking
 - `!cowsay optin` - Opt back into statistics tracking
 
-### Permissions
-- `!cowsay permissions` - View current permission settings (admin+)
-- `!cowsay setperm <role> <level>` - Map Discord role to permission level (admin+)
+### Permissions & Admin
+- `!cowsay perms setrole <level> @role` - Map Discord role to permission level (admin+)
+- `!cowsay perms listroles` - Show role mappings
+- `!cowsay myperms` - Check your permission level
+- `!cowsay admin help` - View all admin commands (admin+)
+- `!cowsay admin addcoins @user <amount> [reason]` - Add coins (admin+)
+- `!cowsay admin removecoins @user <amount> [reason]` - Remove coins (admin+)
+- `!cowsay admin balance @user` - Check any user's balance (admin+)
+- `!cowsay admin transactions` - View all transactions (admin+)
 
 ### Utilities
 - `!characters` - Browse ASCII characters
@@ -218,9 +234,11 @@ npm start
 - **Permission System**: Discord-native role-based access control
 - **Rivals System**: Per-server rival bot configuration for dynamic AI behavior
 
-### Database Schema (v7)
+### Database Schema (v8)
 - **User Currency**: Balances, streaks, daily bonuses, and earnings tracking
 - **Coin Transactions**: Complete audit trail of all coin movements
+- **Shop Items**: Premium characters and boosts with pricing
+- **User Purchases**: Ownership tracking for premium content
 - **Balatro Games**: Persistent poker game states
 - **Game Outcomes**: Comprehensive statistics for all games
 - **Server Rivals**: Per-server rival bot configurations
@@ -240,7 +258,7 @@ npm start
 │   └── ...                 # Other utility modules
 ├── config.js               # Configuration management
 ├── index.js               # Main bot entry point
-└── schema.json            # Database schema (v7)
+└── schema.json            # Database schema (v8)
 ```
 
 ## Development

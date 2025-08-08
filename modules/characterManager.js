@@ -1,9 +1,11 @@
 const cowsay = require("cowsay");
 const Logger = require('./logger');
+const shopManager = require('./shopManager');
 
 class CharacterManager {
     constructor() {
         this.characters = [];
+        this.premiumCharacters = ['dragon', 'tux', 'vader', 'elephant', 'ghostbusters'];
         this.loadCharacters();
     }
 
@@ -23,8 +25,28 @@ class CharacterManager {
         return this.characters;
     }
 
-    generateAscii(animal, message) {
+    getFreeCharacters() {
+        return this.characters.filter(char => !this.premiumCharacters.includes(char));
+    }
+
+    getPremiumCharacters() {
+        return this.premiumCharacters;
+    }
+
+    async canUseCharacter(userId, character) {
+        if (!this.premiumCharacters.includes(character)) {
+            return true; // Free character
+        }
+        return await shopManager.hasItem(userId, character);
+    }
+
+    async generateAscii(animal, message, userId = null) {
         try {
+            // Check if user can use this character
+            if (userId && !await this.canUseCharacter(userId, animal)) {
+                return `🔒 **${animal}** is a premium character! Use \`!cowsay shop\` to purchase it.`;
+            }
+            
             return cowsay.say({ text: message, f: animal });
         } catch (error) {
             Logger.error('Character generation error:', error);

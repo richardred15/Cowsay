@@ -13,7 +13,7 @@ const Logger = require("./modules/logger");
 const rateLimiter = require("./modules/rateLimiter");
 const autoReply = require("./modules/autoReply");
 const IntentDetector = require("./modules/intentDetector");
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const cardRenderer = require("./modules/cardRenderer");
 
 // Import all modules at the top to avoid lazy loading
@@ -34,6 +34,7 @@ const currencyManager = require("./modules/currencyManager");
 const rivalManager = require("./modules/rivalManager");
 const discordPermissions = require("./modules/discordPermissions");
 const gameStats = require("./modules/gameStats");
+const shopManager = require("./modules/shopManager");
 
 const client = new Client({
     intents: [
@@ -154,9 +155,30 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.isButton()) {
         try {
+            // Handle shop purchases
+            if (interaction.customId.startsWith('shop_buy_')) {
+                const itemId = interaction.customId.replace('shop_buy_', '');
+                const result = await shopManager.purchaseItem(interaction.user.id, itemId);
+                
+                if (result.success) {
+                    const embed = new EmbedBuilder()
+                        .setTitle("🎉 Purchase Successful!")
+                        .setColor(0x00ff00)
+                        .setDescription(`${result.message}\n\n${result.item.category === 'character' ? `You can now use \`!${itemId}say <text>\` to use your new character!` : 'Your boost is now active!'}`);
+                    
+                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                } else {
+                    await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+                }
+                return;
+            }
+            
             await gameManager.handleButtonInteraction(interaction);
         } catch (error) {
-            Logger.error("Game interaction error", error.message);
+            Logger.error("Button interaction error", error.message);
+            if (!interaction.replied) {
+                await interaction.reply({ content: "❌ An error occurred. Please try again.", ephemeral: true });
+            }
         }
     }
 });
@@ -297,6 +319,62 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    if (message.content === "!cowsay help coins") {
+        const embed = new EmbedBuilder()
+            .setTitle('🪙 Coin System Help')
+            .setColor(0xffd700)
+            .setDescription('Earn coins by playing games and use them to purchase premium items!')
+            .addFields(
+                {
+                    name: '🎮 Earning Coins',
+                    value: '• **Pong**: 50 coins (win), 10 coins (participation), +25 bonus (shutout)\n• **Tic-Tac-Toe**: 30 coins (win), 5 coins (participation)\n• **Battleship**: 100 coins (win), 15 coins (participation)\n• **Balatro**: 25-150 coins (progressive), +50 bonus (ante 8+)\n• **Blackjack**: Variable based on betting',
+                    inline: false
+                },
+                {
+                    name: '⚡ Bonus Multipliers',
+                    value: '• **Win Streaks**: +10% per consecutive win (max 50%)\n• **First Win of Day**: 2x multiplier on all rewards\n• **Perfect Games**: Extra bonus coins for exceptional play\n• **Daily Bonus**: Up to 100 coins (for players under 1000)',
+                    inline: false
+                },
+                {
+                    name: '📊 Commands',
+                    value: '`!cowsay balance` - Check your current balance\n`!cowsay daily` - Claim daily bonus\n`!cowsay transactions` - View recent transactions\n`!cowsay leaderboard` - See top coin holders',
+                    inline: false
+                }
+            )
+            .setFooter({ text: 'Play games to earn coins and climb the leaderboard!' });
+        
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay help shop") {
+        const embed = new EmbedBuilder()
+            .setTitle('🛒 Shop System Help')
+            .setColor(0x9b59b6)
+            .setDescription('Purchase premium characters and boosts with your hard-earned coins!')
+            .addFields(
+                {
+                    name: '🎭 Premium Characters',
+                    value: '• **Dragon** (500 coins) - Fierce dragon ASCII art\n• **Tux Penguin** (300 coins) - Linux mascot penguin\n• **Darth Vader** (750 coins) - Dark side ASCII art\n• **Elephant** (400 coins) - Majestic elephant ASCII\n• **Ghostbusters** (600 coins) - Who you gonna call?',
+                    inline: false
+                },
+                {
+                    name: '⚡ Boosts (Coming Soon)',
+                    value: '• **Daily Boost** (1000 coins) - Double daily bonus for 7 days\n• **Streak Shield** (1500 coins) - Protect win streak from one loss',
+                    inline: false
+                },
+                {
+                    name: '🛍️ How to Shop',
+                    value: '1. Use `!cowsay shop` to browse items\n2. Click the buttons to purchase items\n3. Use your new characters with `!<character>say <text>`\n4. Buttons are disabled if you can\'t afford an item',
+                    inline: false
+                }
+            )
+            .setFooter({ text: 'Earn coins by playing games to unlock premium content!' });
+        
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
     if (message.content === "!cowsay join") {
         await gameManager.handleJoinCommand(message);
         return;
@@ -347,7 +425,7 @@ client.on("messageCreate", async (message) => {
                     })
                     .join("\n")
             )
-            .setFooter({ text: "Play blackjack to earn more coins!" });
+            .setFooter({ text: "Play games to earn more coins!" });
 
         message.reply({ embeds: [embed] });
         return;
@@ -361,7 +439,7 @@ client.on("messageCreate", async (message) => {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle("📊 Transaction History")
+            .setTitle(`📊 ${message.author.displayName}'s Transaction History`)
             .setColor(0x00ae86)
             .setDescription(
                 history
@@ -375,6 +453,229 @@ client.on("messageCreate", async (message) => {
             )
             .setFooter({ text: "Last 10 transactions" });
 
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay shop") {
+        try {
+            const items = await shopManager.getShopItems();
+            const userPurchases = await shopManager.getUserPurchases(message.author.id);
+            const userBalance = await currencyManager.getBalance(message.author.id);
+            
+            if (!items || items.length === 0) {
+                message.reply("Shop is currently empty! 🛒");
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle("🛒 Cowsay Shop")
+                .setColor(0x9b59b6)
+                .setDescription(`Purchase premium characters and boosts with your coins!\n🪙 **Your Balance: ${userBalance} coins**`);
+
+            const categories = [...new Set(items.map(item => item.category))];
+            
+            for (const category of categories) {
+                const categoryItems = items.filter(item => item.category === category);
+                const itemList = categoryItems.map(item => {
+                    const owned = userPurchases.includes(item.item_id);
+                    const status = owned ? "✅ Owned" : `💰 ${item.price} coins`;
+                    return `**${item.name}** - ${status}\n*${item.description}*`;
+                }).join('\n\n');
+                
+                const categoryEmoji = category === 'character' ? '🎭' : category === 'boost' ? '⚡' : '🛍️';
+                embed.addFields({
+                    name: `${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)}s`,
+                    value: itemList,
+                    inline: false
+                });
+            }
+
+            // Create buttons for purchasable items
+            const buttons = [];
+            const availableItems = items.filter(item => !userPurchases.includes(item.item_id));
+            
+            for (let i = 0; i < Math.min(availableItems.length, 25); i++) { // Discord limit of 25 buttons
+                const item = availableItems[i];
+                const canAfford = userBalance >= item.price;
+                
+                buttons.push(
+                    new ButtonBuilder()
+                        .setCustomId(`shop_buy_${item.item_id}`)
+                        .setLabel(`${item.name} (${item.price}🪙)`)
+                        .setStyle(canAfford ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                        .setDisabled(!canAfford)
+                );
+            }
+
+            const components = [];
+            for (let i = 0; i < buttons.length; i += 5) {
+                components.push(
+                    new ActionRowBuilder().addComponents(buttons.slice(i, i + 5))
+                );
+            }
+
+            embed.setFooter({ text: "Click buttons below to purchase items" });
+            message.reply({ embeds: [embed], components });
+        } catch (error) {
+            console.log('Shop error:', error);
+            message.reply("❌ Shop is currently unavailable. Please try again later.");
+        }
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay buy ")) {
+        message.reply("🛒 Use `!cowsay shop` and click the buttons to purchase items!");
+        return;
+    }
+
+    // Catch-all protection for admin commands
+    if (message.content.startsWith("!cowsay admin ")) {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+    }
+
+    if (message.content.startsWith("!cowsay admin addcoins ")) {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
+        const args = message.content.slice(23).trim().split(' ');
+        const mention = message.mentions.users.first();
+        const amount = parseInt(args[1]);
+        
+        if (!mention || !amount || amount <= 0) {
+            message.reply('Usage: `!cowsay admin addcoins @user <amount> [reason]`');
+            return;
+        }
+        
+        const reason = args.slice(2).join(' ') || 'Admin grant';
+        const result = await currencyManager.adminAddCoins(mention.id, amount, reason);
+        
+        if (result.success) {
+            message.reply(`✅ Added **${amount}** coins to <@${mention.id}>. New balance: **${result.newBalance}** coins`);
+        } else {
+            message.reply(`❌ Failed to add coins: ${result.error}`);
+        }
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay admin removecoins ")) {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
+        const args = message.content.slice(26).trim().split(' ');
+        const mention = message.mentions.users.first();
+        const amount = parseInt(args[1]);
+        
+        if (!mention || !amount || amount <= 0) {
+            message.reply('Usage: `!cowsay admin removecoins @user <amount> [reason]`');
+            return;
+        }
+        
+        const reason = args.slice(2).join(' ') || 'Admin removal';
+        const result = await currencyManager.adminRemoveCoins(mention.id, amount, reason);
+        
+        if (result.success) {
+            message.reply(`✅ Removed **${result.actualAmount}** coins from <@${mention.id}>. New balance: **${result.newBalance}** coins`);
+        } else {
+            message.reply(`❌ Failed to remove coins: ${result.error}`);
+        }
+        return;
+    }
+
+    if (message.content === "!cowsay admin transactions") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
+        const history = await currencyManager.getAllTransactions(20);
+        if (history.length === 0) {
+            message.reply("No transactions found! 📊");
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle("🔍 All Transaction History (Admin)")
+            .setColor(0xff4444)
+            .setDescription(
+                history
+                    .map((tx, index) => {
+                        const sign = tx.amount >= 0 ? "+" : "";
+                        const date = new Date(tx.created_at).toLocaleDateString();
+                        const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('Admin') ? '🔧' : '🪙';
+                        return `${emoji} <@${tx.user_id}> ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
+                    })
+                    .join("\n\n")
+            )
+            .setFooter({ text: "Last 20 transactions across all users" });
+
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay admin balance ")) {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
+        const mention = message.mentions.users.first();
+        if (!mention) {
+            message.reply('Usage: `!cowsay admin balance @user`');
+            return;
+        }
+        
+        const balance = await currencyManager.getBalance(mention.id);
+        message.reply(`🪙 <@${mention.id}> has **${balance}** coins`);
+        return;
+    }
+
+    if (message.content === "!cowsay admin help") {
+        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
+            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+            return;
+        }
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🔧 Admin Commands Help')
+            .setColor(0xff4444)
+            .setDescription('Administrative commands for managing the coin economy and server settings.')
+            .addFields(
+                {
+                    name: '🪙 Coin Management',
+                    value: '`!cowsay admin addcoins @user <amount> [reason]` - Add coins to a user\n`!cowsay admin removecoins @user <amount> [reason]` - Remove coins from a user\n`!cowsay admin balance @user` - Check any user\'s balance\n`!cowsay admin transactions` - View last 20 transactions (all users)',
+                    inline: false
+                },
+                {
+                    name: '🔥 Rivals Management',
+                    value: '`!cowsay rival add @user <description>` - Add a rival bot\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals\n`!cowsay help rivals` - Learn about rivals system',
+                    inline: false
+                },
+                {
+                    name: '🔐 Permissions',
+                    value: '`!cowsay perms setrole <level> @role` - Map role to permission level\n`!cowsay perms removerole @role` - Remove role mapping\n`!cowsay perms listroles` - Show role mappings\n`!cowsay perms check @user` - Check user permission level',
+                    inline: false
+                },
+                {
+                    name: '⚙️ Server Settings',
+                    value: '`!toggleautoreply` - Toggle auto-reply to "cowsay" mentions\n`!toggleintent` - Cycle intent detection modes\n`!showconfig` - Show current server configuration\n`!clearleaderboard` - Clear leaderboard cache',
+                    inline: false
+                },
+                {
+                    name: '📊 Statistics',
+                    value: '`!cowsay serverstats` - View server game statistics\n`!cowsay topplayers` - View server leaderboard\nNote: Users can opt out with `!cowsay optstats out`',
+                    inline: false
+                }
+            )
+            .setFooter({ text: 'All admin commands require Administrator permission or custom role mapping' });
+        
         message.reply({ embeds: [embed] });
         return;
     }
@@ -844,9 +1145,12 @@ client.on("messageCreate", async (message) => {
     if (message.content === "!showconfig") {
         const autoReplyEnabled = await autoReply.isEnabled(message.guild?.id);
         const intentMode = await intentDetector.getMode(message.guild?.id);
+        const rivals = await rivalManager.getRivals(message.guild?.id);
+        const roleMappings = await discordPermissions.getRoleMappings(message.guild?.id);
+        const shopItems = await shopManager.getShopItems();
 
         const embed = new EmbedBuilder()
-            .setTitle("⚙️ Cowsay Configuration")
+            .setTitle("⚙️ Cowsay Server Configuration")
             .setColor(0x00ae86)
             .addFields(
                 {
@@ -866,9 +1170,37 @@ client.on("messageCreate", async (message) => {
                             : "⚙️ Regex Mode"
                     }\nDetects conversation continuations`,
                     inline: true,
+                },
+                {
+                    name: "Rivals System",
+                    value: `${
+                        rivals.length > 0 
+                            ? `🔥 ${rivals.length} rival(s) configured`
+                            : "❌ No rivals configured"
+                    }\nCompetitive bot interactions`,
+                    inline: true,
+                },
+                {
+                    name: "Permission System",
+                    value: `${
+                        roleMappings.size > 0
+                            ? `🔐 ${roleMappings.size} custom role mapping(s)`
+                            : "🔐 Using Discord defaults"
+                    }\nRole-based access control`,
+                    inline: true,
+                },
+                {
+                    name: "Shop System",
+                    value: `🛒 ${shopItems.length} items available\nPremium characters & boosts`,
+                    inline: true,
+                },
+                {
+                    name: "Database Schema",
+                    value: "📊 Version 8\nCurrency, shop, stats, permissions",
+                    inline: true,
                 }
             )
-            .setFooter({ text: "Use toggle commands to change settings for this server" })
+            .setFooter({ text: "Use toggle/admin commands to modify settings" })
             .setTimestamp();
 
         message.reply({ embeds: [embed] });
@@ -1065,7 +1397,7 @@ client.on("messageCreate", async (message) => {
             Logger.info("Cowsay command used", {
                 user: message.author.username,
             });
-            const cow = cowsay.say({ text });
+            const cow = await characterManager.generateAscii('cow', text, message.author.id);
             const escaped = cow.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
             const formatted = `\`\`\`\n${escaped}\n\`\`\``;
             if (formatted.length > 2000) {
@@ -1152,7 +1484,14 @@ client.on("messageCreate", async (message) => {
                 user: message.author.username,
             });
             try {
-                const result = characterManager.generateAscii(char, text);
+                const result = await characterManager.generateAscii(char, text, message.author.id);
+                
+                // Check if it's a premium character message
+                if (result.includes('🔒')) {
+                    message.reply(result);
+                    return;
+                }
+                
                 const escaped = result
                     .replace(/\\/g, "\\\\")
                     .replace(/`/g, "\\`");

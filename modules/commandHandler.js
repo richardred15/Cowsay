@@ -13,11 +13,15 @@ class CommandHandler {
         return await getSystemPrompt(LLM_PROVIDER, serverId);
     }
 
-    handleHelpCommand(message) {
+    async handleHelpCommand(message) {
+        const discordPermissions = require('./discordPermissions');
+        const userLevel = await discordPermissions.getUserPermissionLevel(message);
+        const isAdmin = userLevel === 'admin' || userLevel === 'owner';
+        const isModerator = isAdmin || userLevel === 'moderator';
+        
         const embed = new EmbedBuilder()
             .setTitle('🐄 Cowsay Bot Commands')
             .setColor(0x00AE86)
-            .setThumbnail('https://cdn.discordapp.com/emojis/1234567890123456789.png') // cow emoji if available
             .addFields(
                 {
                     name: '💬 Chat Commands',
@@ -26,45 +30,68 @@ class CommandHandler {
                 },
                 {
                     name: '🎭 Fun Commands', 
-                    value: '`!cowsay <text>` - Make the cow speak\n`!<character>say <text>` - Use other ASCII characters\n`!joke` - Random dad joke\n`!rimshot` - Ba-dum-tss!\n`!cowsay embed` - Test ASCII card display',
+                    value: '`!cowsay <text>` - Make the cow speak\n`!<character>say <text>` - Use other ASCII characters\n`!joke` - Random dad joke\n`!rimshot` - Ba-dum-tss!',
                     inline: true
                 },
                 {
-                    name: '🎮 Games & Currency',
-                    value: '`!cowsay games` - View available games\n`!cowsay play <game>` - Start a game\n`/battleship` - Battleship (slash command)\n`/balatro` - Balatro poker (slash command)\n`!blackjack <mode> <bet>` - Quick blackjack\n`!cowsay join` - Join multiplayer lobbies\n`!cowsay balance` - Check your coins 🪙\n`!cowsay daily` - Claim daily bonus\n`!cowsay leaderboard` - Top coin holders',
+                    name: '🎮 Games',
+                    value: '`!cowsay games` - View available games\n`!cowsay play <game>` - Start a game\n`/battleship` - Battleship (slash command)\n`/balatro` - Balatro poker (slash command)\n`!blackjack <mode> <bet>` - Quick blackjack',
                     inline: true
                 },
                 {
-                    name: '🔥 Rivals',
-                    value: '`!cowsay rival add @user description` - Add a rival\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals',
+                    name: '🪙 Currency System',
+                    value: '`!cowsay balance` - Check your coins\n`!cowsay daily` - Claim daily bonus\n`!cowsay leaderboard` - Top coin holders\n`!cowsay transactions` - View transaction history\n`!cowsay shop` - Browse premium items\n`!cowsay help coins` - Learn about earning coins',
                     inline: true
                 },
                 {
                     name: '🎯 Other Commands',
-                    value: '`!characters` - View all ASCII characters\n`!clearleaderboard` - Clear leaderboard cache (Moderator)\n`!cowsay help rivals` - Learn about the rivals system',
+                    value: '`!characters` - View all ASCII characters\n`!cowsay help rivals` - Learn about the rivals system\n`!cowsay stats` - Your game statistics\n`!cowsay myperms` - Check your permission level',
+                    inline: false
+                },
+                {
+                    name: '🛒 Shop System',
+                    value: '`!cowsay shop` - Browse premium characters & boosts\n`!cowsay help shop` - Learn about the shop system\nClick buttons in shop to purchase items!',
+                    inline: false
+                }
+            );
+        
+        if (isModerator) {
+            embed.addFields({
+                name: '📊 Moderator Commands',
+                value: '`!cowsay serverstats` - Server statistics\n`!cowsay topplayers` - Server leaderboard\n`!clearleaderboard` - Clear leaderboard cache',
+                inline: false
+            });
+        }
+        
+        if (isAdmin) {
+            embed.addFields(
+                {
+                    name: '🔥 Rivals (Admin)',
+                    value: '`!cowsay rival add @user description` - Add a rival\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals',
                     inline: false
                 },
                 {
                     name: '⚙️ Settings (Admin)',
-                    value: '`!toggleautoreply` - Toggle auto-reply to "cowsay" mentions\n`!toggleintent` - Cycle intent detection (Embedding/Regex/LLM)\n`!showconfig` - Show current configuration',
+                    value: '`!toggleautoreply` - Toggle auto-reply\n`!toggleintent` - Cycle intent detection\n`!showconfig` - Show configuration',
                     inline: false
                 },
                 {
-                    name: '🔐 Permissions',
-                    value: '`!cowsay perms setrole <level> @role` - Map role to permission level (Admin)\n`!cowsay perms listroles` - Show role mappings\n`!cowsay myperms` - Check your permission level',
+                    name: '🔐 Permissions (Admin)',
+                    value: '`!cowsay perms setrole <level> @role` - Map role\n`!cowsay perms listroles` - Show mappings\n`!cowsay perms check @user` - Check permissions',
                     inline: false
                 },
                 {
-                    name: '📊 Statistics',
-                    value: '`!cowsay stats` - Your game statistics\n`!cowsay stats @user` - View someone else\'s stats\n`!cowsay serverstats` - Server statistics (Moderator)\n`!cowsay topplayers` - Server leaderboard\n`!cowsay optstats out/in` - Opt out/in of tracking',
+                    name: '🔧 Admin Commands',
+                    value: '`!cowsay admin help` - View all admin commands\n`!cowsay admin addcoins @user <amount>` - Add coins\n`!cowsay admin transactions` - View all transactions',
                     inline: false
                 }
-            )
-            .setFooter({ 
-                text: `${characterManager.getCharacters().length} ASCII characters available • Use !characters to browse them`,
-                iconURL: message.author.displayAvatarURL()
-            })
-            .setTimestamp();
+            );
+        }
+        
+        embed.setFooter({ 
+            text: `${characterManager.getCharacters().length} ASCII characters available • Use !characters to browse them`,
+            iconURL: message.author.displayAvatarURL()
+        }).setTimestamp();
         
         message.reply({ embeds: [embed] });
         return true;

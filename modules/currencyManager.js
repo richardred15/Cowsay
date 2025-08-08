@@ -49,7 +49,7 @@ class CurrencyManager {
     async getBalance(userId) {
         try {
             await this.migrateFromFile();
-            const rows = await database.query(
+            const [rows] = await database.query(
                 'SELECT balance FROM user_currency WHERE user_id = ?',
                 [userId]
             );
@@ -143,12 +143,11 @@ class CurrencyManager {
 
     async getLeaderboard(limit = 10) {
         try {
-            const [rows] = await database.query(
-                'SELECT user_id as userId, balance FROM user_currency ORDER BY balance DESC LIMIT ?',
-                [limit]
+            const rows = await database.query(
+                `SELECT user_id as userId, balance FROM user_currency ORDER BY balance DESC LIMIT ${limit}`
             );
             
-            return rows;
+            return rows || [];
         } catch (error) {
             console.log('Error getting leaderboard:', error.message);
             return [];
@@ -259,12 +258,86 @@ class CurrencyManager {
     async getTransactionHistory(userId, limit = 10) {
         try {
             const rows = await database.query(
-                'SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
-                [userId, limit]
+                `SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
+                [userId]
             );
             return rows || [];
         } catch (error) {
             console.log('Error getting transaction history:', error.message);
+            return [];
+        }
+    }
+    
+    async spendCoins(userId, amount, reason = 'Purchase') {
+        try {
+            const balanceBefore = await this.getBalance(userId);
+            if (balanceBefore < amount) {
+                return false;
+            }
+            
+            await database.query(
+                'UPDATE user_currency SET balance = balance - ? WHERE user_id = ? AND balance >= ?',
+                [amount, userId, amount]
+            );
+            
+            const balanceAfter = balanceBefore - amount;
+            await this.logTransaction(userId, -amount, reason, balanceBefore, balanceAfter);
+            
+            return true;
+        } catch (error) {
+            console.log('Error spending coins:', error.message);
+            return false;
+        }
+    }
+    
+    async adminAddCoins(userId, amount, reason = 'Admin grant') {
+        try {
+            await this.createUser(userId);
+            const balanceBefore = await this.getBalance(userId);
+            
+            await database.query(
+                'UPDATE user_currency SET balance = balance + ? WHERE user_id = ?',
+                [amount, userId]
+            );
+            
+            const balanceAfter = balanceBefore + amount;
+            await this.logTransaction(userId, amount, reason, balanceBefore, balanceAfter);
+            
+            return { success: true, newBalance: balanceAfter };
+        } catch (error) {
+            console.log('Error adding coins:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async adminRemoveCoins(userId, amount, reason = 'Admin removal') {
+        try {
+            const balanceBefore = await this.getBalance(userId);
+            const finalAmount = Math.min(amount, balanceBefore); // Don't go negative
+            
+            await database.query(
+                'UPDATE user_currency SET balance = balance - ? WHERE user_id = ?',
+                [finalAmount, userId]
+            );
+            
+            const balanceAfter = balanceBefore - finalAmount;
+            await this.logTransaction(userId, -finalAmount, reason, balanceBefore, balanceAfter);
+            
+            return { success: true, newBalance: balanceAfter, actualAmount: finalAmount };
+        } catch (error) {
+            console.log('Error removing coins:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async getAllTransactions(limit = 50) {
+        try {
+            const rows = await database.query(
+                `SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ${limit}`
+            );
+            return rows || [];
+        } catch (error) {
+            console.log('Error getting all transactions:', error.message);
             return [];
         }
     }
