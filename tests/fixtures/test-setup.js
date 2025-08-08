@@ -16,6 +16,12 @@ process.env.MODEL = 'test-model';
 jest.mock('discord.js', () => require('../mocks/discord-mock'));
 jest.mock('../../modules/llmProvider', () => require('../mocks/llm-mock'));
 
+// Initialize database like production does
+beforeAll(async () => {
+  const database = require('../../modules/database');
+  await database.init();
+});
+
 // Global test utilities
 global.testUtils = {
   createMockUser: () => ({
