@@ -28,9 +28,9 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 
 ### 🛒 Shop System
 - **Premium Characters**: Unlock exclusive ASCII characters with coins
+- **Boost Items**: Daily Boost (1000 coins), Streak Shield (1500 coins)
 - **Button Interface**: Click-to-purchase with affordability indicators
-- **Character Categories**: Free vs premium character separation
-- **Future Boosts**: Daily multipliers and streak protection (coming soon)
+- **Smart Display**: Shows active boosts and ownership status
 - **Transaction Integration**: All purchases logged with full audit trail
 
 ### 🛠️ Utilities
@@ -140,8 +140,8 @@ npm start
 ### Currency & Shop
 - `!cowsay balance` - Check your coins
 - `!cowsay daily` - Claim daily bonus
-- `!cowsay leaderboard` - Top coin holders
-- `!cowsay transactions` - View transaction history
+- `!cowsay leaderboard` - Top coin holders (paginated)
+- `!cowsay transactions` - View transaction history (paginated)
 - `!cowsay shop` - Browse premium items (button interface)
 - `!cowsay help coins` - Learn about earning coins
 - `!cowsay help shop` - Learn about the shop system
@@ -163,8 +163,8 @@ npm start
 - `!cowsay admin transactions` - View all transactions (admin+)
 
 ### Utilities
-- `!characters` - Browse ASCII characters
-- `!cowsay help` - Show all commands
+- `!characters` - Browse ASCII characters (paginated)
+- `!cowsay help` - Show all commands (paginated by category)
 - `!showconfig` - View bot configuration (per-server)
 - `!toggleautoreply` - Toggle auto-reply (per-server, admin+)
 - `!toggleintent` - Cycle intent detection modes (per-server, admin+)
@@ -220,7 +220,8 @@ npm start
 ### Daily System
 - **Daily Bonus**: Up to 100 coins for players under 1000 coins
 - **Streak Tracking**: Consecutive wins tracked across all games
-- **Transaction History**: `!cowsay transactions` shows last 10 transactions
+- **Transaction History**: `!cowsay transactions` shows paginated transaction history
+- **Boost System**: Daily boost (2x daily bonus) and streak shield (loss protection)
 
 ## Architecture
 
@@ -234,7 +235,7 @@ npm start
 - **Permission System**: Discord-native role-based access control
 - **Rivals System**: Per-server rival bot configuration for dynamic AI behavior
 
-### Database Schema (v8)
+### Database Schema (v9)
 - **User Currency**: Balances, streaks, daily bonuses, and earnings tracking
 - **Coin Transactions**: Complete audit trail of all coin movements
 - **Shop Items**: Premium characters and boosts with pricing
@@ -258,7 +259,7 @@ npm start
 │   └── ...                 # Other utility modules
 ├── config.js               # Configuration management
 ├── index.js               # Main bot entry point
-└── schema.json            # Database schema (v8)
+└── schema.json            # Database schema (v9)
 ```
 
 ## Development
