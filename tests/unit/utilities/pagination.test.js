@@ -1,4 +1,4 @@
-const { createPaginatedEmbed, calculatePages } = require('../../../modules/pagination');
+const Pagination = require('../../../modules/pagination');
 
 describe('Pagination Utilities', () => {
   describe('Page Calculations', () => {

@@ -1,13 +1,11 @@
-const CurrencyManager = require('../../modules/currencyManager');
-
-// Mock database to test pure logic
-jest.mock('../../modules/database', () => ({
-  query: jest.fn()
-}));
+const { setupTestDatabase } = require('../fixtures/db-setup');
 
 describe('CurrencyManager Unit Tests', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+  beforeAll(async () => {
+    await setupTestDatabase();
+    
+    const database = require('../../modules/database');
+    await database.init();
   });
 
   describe('Streak Bonus Calculations', () => {

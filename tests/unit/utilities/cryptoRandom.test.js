@@ -1,4 +1,4 @@
-const { generateSecureRandom, randomChoice, shuffleArray } = require('../../../modules/cryptoRandom');
+const CryptoRandom = require('../../../modules/cryptoRandom');
 
 describe('Crypto Random Utilities', () => {
   describe('Random Number Generation', () => {
@@ -7,7 +7,7 @@ describe('Crypto Random Utilities', () => {
       const max = 10;
       
       for (let i = 0; i < 100; i++) {
-        const random = Math.floor(Math.random() * (max - min + 1)) + min;
+        const random = CryptoRandom.randomInt(min, max);
         expect(random).toBeGreaterThanOrEqual(min);
         expect(random).toBeLessThanOrEqual(max);
       }
@@ -34,7 +34,7 @@ describe('Crypto Random Utilities', () => {
 
     test('should shuffle array without losing elements', () => {
       const original = [1, 2, 3, 4, 5];
-      const shuffled = [...original].sort(() => Math.random() - 0.5);
+      const shuffled = CryptoRandom.shuffle(original);
       
       expect(shuffled).toHaveLength(original.length);
       original.forEach(item => {
@@ -47,7 +47,7 @@ describe('Crypto Random Utilities', () => {
     test('should simulate fair dice rolls', () => {
       const rolls = [];
       for (let i = 0; i < 600; i++) {
-        rolls.push(Math.floor(Math.random() * 6) + 1);
+        rolls.push(CryptoRandom.randomInt(1, 6));
       }
       
       // Each face should appear roughly 100 times (±30)

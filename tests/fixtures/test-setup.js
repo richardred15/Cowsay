@@ -15,11 +15,7 @@ process.env.MODEL = "test-model";
 // Mock external services
 jest.mock("discord.js", () => require("../mocks/discord-mock"));
 jest.mock("../../modules/llmProvider", () => require("../mocks/llm-mock"));
-jest.mock("../../modules/currencyManager", () => {
-    const actual = jest.requireActual("../../modules/currencyManager");
-    actual.migrated = true; // Skip file migration in tests
-    return actual;
-});
+
 // Initialize database like production does
 beforeAll(async () => {
     const database = require("../../modules/database");
