@@ -71,10 +71,30 @@ describe('SQL Injection Prevention', () => {
     
     // Use a known valid user ID to create baseline transactions with awardCoins
     const validUserId = '123456789';
-    await currencyManager.awardCoins(validUserId, 50, 'Test reward');
     
-    // Verify baseline transaction was created
+    console.log('=== DEBUGGING TRANSACTION TEST ===');
+    console.log('Calling awardCoins for user:', validUserId);
+    const awardResult = await currencyManager.awardCoins(validUserId, 50, 'Test reward');
+    console.log('awardCoins result:', awardResult);
+    
+    console.log('Checking user balance...');
+    const balance = await currencyManager.getBalance(validUserId);
+    console.log('User balance:', balance);
+    
+    console.log('Checking transaction history...');
     const baselineTransactions = await currencyManager.getTransactionHistory(validUserId, 10);
+    console.log('Transaction count:', baselineTransactions.length);
+    console.log('Transactions:', baselineTransactions);
+    
+    // Check database directly
+    console.log('Checking database directly...');
+    const [dbTransactions] = await connection.execute(
+      'SELECT * FROM coin_transactions WHERE user_id = ?',
+      [validUserId]
+    );
+    console.log('DB transaction count:', dbTransactions.length);
+    console.log('DB transactions:', dbTransactions);
+    
     expect(baselineTransactions.length).toBeGreaterThan(0); // Ensure test setup worked
     
     for (const maliciousInput of maliciousInputs) {
