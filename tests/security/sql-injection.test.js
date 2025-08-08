@@ -31,21 +31,26 @@ describe('SQL Injection Prevention', () => {
     const currencyManager = require('../../modules/currencyManager');
     
     for (const maliciousInput of maliciousInputs) {
-      // Test getBalance with malicious user ID
+      // Test getBalance with malicious user ID - should create user and return default balance
       const balance = await currencyManager.getBalance(maliciousInput);
       expect(balance).toBe(1000); // Default balance, not affected by injection
+      
+      // Verify the malicious input was stored as literal data, not executed as SQL
+      const [rows] = await connection.execute(
+        'SELECT user_id FROM user_currency WHERE user_id = ?',
+        [maliciousInput]
+      );
+      expect(rows.length).toBe(1); // User record was created
+      expect(rows[0].user_id).toBe(maliciousInput); // Malicious input stored as literal string
       
       // Test addBalance with malicious user ID
       await expect(
         currencyManager.addBalance(maliciousInput, 100)
       ).resolves.not.toThrow();
       
-      // Verify database integrity
-      const [rows] = await connection.execute(
-        'SELECT COUNT(*) as count FROM user_currency WHERE user_id = ?',
-        [maliciousInput]
-      );
-      expect(rows[0].count).toBe(1); // Only one record created, no injection
+      // Verify balance was updated correctly (proves parameterized query worked)
+      const newBalance = await currencyManager.getBalance(maliciousInput);
+      expect(newBalance).toBe(1100); // 1000 + 100
     }
   });
 
@@ -53,13 +58,21 @@ describe('SQL Injection Prevention', () => {
     const currencyManager = require('../../modules/currencyManager');
     
     for (const maliciousInput of maliciousInputs) {
+      // First create some transaction history for this malicious user ID
+      await currencyManager.getBalance(maliciousInput); // Creates user
+      await currencyManager.addBalance(maliciousInput, 50); // Creates transaction
+      
       // Test getTransactionHistory with malicious input
       const transactions = await currencyManager.getTransactionHistory(maliciousInput, 10);
       expect(Array.isArray(transactions)).toBe(true);
       
-      // Verify no unauthorized data access
-      const validTransactions = transactions.filter(t => t.user_id === maliciousInput);
-      expect(validTransactions.length).toBe(transactions.length);
+      // Verify transactions belong only to the malicious input user (treated as literal string)
+      transactions.forEach(transaction => {
+        expect(transaction.user_id).toBe(maliciousInput);
+      });
+      
+      // Verify we got the expected transaction
+      expect(transactions.length).toBeGreaterThan(0);
     }
   });
 
@@ -67,20 +80,19 @@ describe('SQL Injection Prevention', () => {
     const currencyManager = require('../../modules/currencyManager');
     
     for (const maliciousInput of maliciousInputs) {
-      // Test admin functions with malicious input
-      await expect(
-        currencyManager.adminAddCoins(maliciousInput, 100, maliciousInput)
-      ).resolves.not.toThrow();
+      // Test admin functions with malicious input as both user_id and reason
+      const result = await currencyManager.adminAddCoins(maliciousInput, 100, maliciousInput);
+      expect(result.success).toBe(true);
       
-      // Verify reason field doesn't execute as SQL
+      // Verify both user_id and reason fields store malicious input as literal strings
       const [rows] = await connection.execute(
-        'SELECT reason FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+        'SELECT user_id, reason FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
         [maliciousInput]
       );
       
-      if (rows.length > 0) {
-        expect(rows[0].reason).toBe(maliciousInput); // Stored as string, not executed
-      }
+      expect(rows.length).toBe(1);
+      expect(rows[0].user_id).toBe(maliciousInput); // User ID stored as literal string
+      expect(rows[0].reason).toBe(maliciousInput); // Reason stored as literal string, not executed
     }
   });
 
