@@ -134,9 +134,8 @@ class Blackjack {
             const gameKey = `blackjack_${interaction.user.id}`;
 
             // Check if player can afford the bet
-            if (
-                !currencyManager.subtractBalance(interaction.user.id, betAmount)
-            ) {
+            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            if (!canAfford) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
                     flags: MessageFlags.Ephemeral,
@@ -193,7 +192,7 @@ class Blackjack {
     }
 
     async showBetSelection(interaction, isDealer) {
-        const balance = currencyManager.getBalance(interaction.user.id);
+        const balance = await currencyManager.getBalance(interaction.user.id);
 
         if (balance < 10) {
             await interaction.reply({
@@ -283,7 +282,8 @@ class Blackjack {
         }
 
         // Check if creator can afford the bet
-        if (!currencyManager.subtractBalance(interaction.user.id, betAmount)) {
+        const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+        if (!canAfford) {
             await interaction.reply({
                 content: "You don't have enough coins for this bet!",
                 ephemeral: true,
@@ -299,7 +299,7 @@ class Blackjack {
                 {
                     id: interaction.user.id,
                     name: interaction.user.displayName,
-                    balance: currencyManager.getBalance(interaction.user.id),
+                    balance: await currencyManager.getBalance(interaction.user.id),
                     bet: betAmount,
                 },
             ],
@@ -352,7 +352,7 @@ class Blackjack {
                     for (const [playerId, betAmount] of Object.entries(
                         currentLobby.bets
                     )) {
-                        currencyManager.addBalance(playerId, betAmount);
+                        await currencyManager.addBalance(playerId, betAmount);
                     }
                     this.lobbies.delete(channelId);
 
@@ -442,7 +442,7 @@ class Blackjack {
     }
 
     async showJoinBetSelection(interaction, lobby) {
-        const balance = currencyManager.getBalance(interaction.user.id);
+        const balance = await currencyManager.getBalance(interaction.user.id);
 
         if (balance < 10) {
             await interaction.reply({
@@ -504,7 +504,8 @@ class Blackjack {
             return true;
         }
 
-        if (!currencyManager.subtractBalance(interaction.user.id, betAmount)) {
+        const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+        if (!canAfford) {
             await interaction.reply({
                 content: "You don't have enough coins for this bet!",
                 ephemeral: true,
@@ -515,7 +516,7 @@ class Blackjack {
         lobby.players.push({
             id: interaction.user.id,
             name: interaction.user.displayName,
-            balance: currencyManager.getBalance(interaction.user.id),
+            balance: await currencyManager.getBalance(interaction.user.id),
             bet: betAmount,
         });
         lobby.bets[interaction.user.id] = betAmount;
@@ -1030,9 +1031,8 @@ class Blackjack {
                 // Double the bet
                 if (freshGameData.bets && freshGameData.bets[userId]) {
                     const additionalBet = freshGameData.bets[userId];
-                    if (
-                        currencyManager.subtractBalance(userId, additionalBet)
-                    ) {
+                    const canDouble = await currencyManager.subtractBalance(userId, additionalBet);
+                    if (canDouble) {
                         freshGameData.bets[userId] *= 2;
                     } else {
                         await interaction.reply({
@@ -1169,9 +1169,9 @@ class Blackjack {
             if (player.blackjack) {
                 // Blackjack pays 2.5x (bet back + 1.5x bet)
                 payout = Math.floor(betAmount * 2.5);
-                currencyManager.addBalance(player.id, payout);
+                await currencyManager.addBalance(player.id, payout);
                 const profit = payout - betAmount;
-                const newBalance = currencyManager.getBalance(player.id);
+                const newBalance = await currencyManager.getBalance(player.id);
                 resultText = `${player.name} (Blackjack! 🎉) +${profit} coins (${newBalance} total)`;
                 winners.push(resultText);
             } else if (!player.bust) {
@@ -1181,27 +1181,27 @@ class Blackjack {
                 ) {
                     // Win pays 2x (bet back + bet amount)
                     payout = betAmount * 2;
-                    currencyManager.addBalance(player.id, payout);
+                    await currencyManager.addBalance(player.id, payout);
                     const profit = payout - betAmount;
-                    const newBalance = currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (${player.score}) +${profit} coins (${newBalance} total)`;
                     winners.push(resultText);
                 } else if (player.score === gameData.dealer.score) {
                     // Push returns bet
                     payout = betAmount;
-                    currencyManager.addBalance(player.id, payout);
-                    const newBalance = currencyManager.getBalance(player.id);
+                    await currencyManager.addBalance(player.id, payout);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (Push - ${player.score}) ±0 coins (${newBalance} total)`;
                     pushes.push(resultText);
                 } else {
                     // Loss - no payout (already deducted)
-                    const newBalance = currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (${player.score}) -${betAmount} coins (${newBalance} total)`;
                     losers.push(resultText);
                 }
             } else {
                 // Bust - no payout (already deducted)
-                const newBalance = currencyManager.getBalance(player.id);
+                const newBalance = await currencyManager.getBalance(player.id);
                 resultText = `${player.name} (Bust - ${player.score}) -${betAmount} coins (${newBalance} total)`;
                 losers.push(resultText);
             }
@@ -1413,9 +1413,9 @@ class Blackjack {
             if (player.blackjack) {
                 // Blackjack pays 2.5x (bet back + 1.5x bet)
                 payout = Math.floor(betAmount * 2.5);
-                currencyManager.addBalance(player.id, payout);
+                await currencyManager.addBalance(player.id, payout);
                 const profit = payout - betAmount;
-                const newBalance = currencyManager.getBalance(player.id);
+                const newBalance = await currencyManager.getBalance(player.id);
                 resultText = `${player.name} (Blackjack! 🎉) +${profit} coins (${newBalance} total)`;
                 winners.push(resultText);
             } else if (!player.bust) {
@@ -1425,27 +1425,27 @@ class Blackjack {
                 ) {
                     // Win pays 2x (bet back + bet amount)
                     payout = betAmount * 2;
-                    currencyManager.addBalance(player.id, payout);
+                    await currencyManager.addBalance(player.id, payout);
                     const profit = payout - betAmount;
-                    const newBalance = currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (${player.score}) +${profit} coins (${newBalance} total)`;
                     winners.push(resultText);
                 } else if (player.score === gameData.dealer.score) {
                     // Push returns bet
                     payout = betAmount;
-                    currencyManager.addBalance(player.id, payout);
-                    const newBalance = currencyManager.getBalance(player.id);
+                    await currencyManager.addBalance(player.id, payout);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (Push - ${player.score}) ±0 coins (${newBalance} total)`;
                     pushes.push(resultText);
                 } else {
                     // Loss - no payout (already deducted)
-                    const newBalance = currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(player.id);
                     resultText = `${player.name} (${player.score}) -${betAmount} coins (${newBalance} total)`;
                     losers.push(resultText);
                 }
             } else {
                 // Bust - no payout (already deducted)
-                const newBalance = currencyManager.getBalance(player.id);
+                const newBalance = await currencyManager.getBalance(player.id);
                 resultText = `${player.name} (Bust - ${player.score}) -${betAmount} coins (${newBalance} total)`;
                 losers.push(resultText);
             }

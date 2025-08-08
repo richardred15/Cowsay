@@ -107,8 +107,10 @@ class Battleship {
                 flags: MessageFlags.Ephemeral
             });
 
-            // Mark as claimed and remove button
+            // Mark as claimed and record Player 2 Discord ID
             game.player2Claimed = true;
+            game.player2Id = interaction.user.id;
+            game.player2Name = interaction.user.displayName;
             const embed = EmbedBuilder.from(interaction.message.embeds[0]);
             await interaction.message.edit({ embeds: [embed], components: [] });
             
@@ -163,7 +165,8 @@ class Battleship {
                     title += ` Winner: Player ${gameData.lastHitPlayer}`;
                 }
                 
-                // Record game outcome
+                // Award coins and record game outcome
+                await this.awardCoins(gameData, updateMessage);
                 this.recordGameOutcome(gameData, updateMessage);
 
                 // Clean up
@@ -186,6 +189,29 @@ class Battleship {
             await message.edit({ embeds: [embed], components: gameData.player2Claimed || updateMessage?.data?.phase === 'gameover' ? [] : message.components });
         } catch (error) {
             Logger.error('Failed to update battleship embed', error.message);
+        }
+    }
+
+    async awardCoins(gameData, updateMessage) {
+        const currencyManager = require('../currencyManager');
+        
+        // Check for perfect game (no hits taken) - would need API support
+        // For now, just award standard rewards
+        const baseReward = 100;
+        
+        // Award coins to winner (100 for battleship win)
+        if (gameData.lastHitPlayer === '1') {
+            const winReward = await currencyManager.awardCoins(gameData.creator, baseReward, 'Battleship win');
+            gameData.winnerReward = winReward;
+            // Participation for Player 2
+            if (gameData.player2Id) {
+                await currencyManager.awardCoins(gameData.player2Id, 15, 'Battleship participation');
+            }
+        } else if (gameData.lastHitPlayer === '2' && gameData.player2Id) {
+            const winReward = await currencyManager.awardCoins(gameData.player2Id, baseReward, 'Battleship win');
+            gameData.winnerReward = winReward;
+            // Participation for Player 1
+            await currencyManager.awardCoins(gameData.creator, 15, 'Battleship participation');
         }
     }
 

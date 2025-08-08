@@ -49,8 +49,9 @@ class TicTacToe {
             this.checkGameEnd(gameData);
         }
         
-        // Record game outcome if game ended
+        // Award coins and record game outcome if game ended
         if (gameData.gameOver) {
+            await this.awardCoins(gameData);
             this.recordGameOutcome(gameData);
         }
 
@@ -79,9 +80,30 @@ class TicTacToe {
 
         let status = "";
         if (gameOver) {
-            if (winner === "X") status = `🎉 ${player1.name} wins!`;
-            else if (winner === "O") status = player2.name === "Cowsay" ? "🐄 Cowsay wins! Moo!" : `🎉 ${player2.name} wins!`;
-            else status = "🤝 It's a tie!";
+            if (winner === "X") {
+                status = `🎉 ${player1.name} wins!`;
+                if (gameData.winnerReward) {
+                    status += `\n🪙 +${gameData.winnerReward.awarded} coins`;
+                    if (gameData.winnerReward.firstWinBonus) status += " (First win bonus!)";
+                    if (gameData.winnerReward.streak > 1) status += ` (${gameData.winnerReward.streak} win streak!)`;
+                }
+            } else if (winner === "O") {
+                if (player2.name === "Cowsay") {
+                    status = "🐄 Cowsay wins! Moo!";
+                } else {
+                    status = `🎉 ${player2.name} wins!`;
+                    if (gameData.winnerReward) {
+                        status += `\n🪙 +${gameData.winnerReward.awarded} coins`;
+                        if (gameData.winnerReward.firstWinBonus) status += " (First win bonus!)";
+                        if (gameData.winnerReward.streak > 1) status += ` (${gameData.winnerReward.streak} win streak!)`;
+                    }
+                }
+            } else {
+                status = "🤝 It's a tie!";
+                if (gameData.tieReward) {
+                    status += `\n🪙 +${gameData.tieReward} coins each`;
+                }
+            }
         } else {
             const currentPlayerName = currentPlayer === "X" ? player1.name : player2.name;
             status = `🔴 ${currentPlayerName}'s turn (${currentPlayer})`;
@@ -179,6 +201,36 @@ class TicTacToe {
             gameData.gameOver = true;
             gameData.winner = null;
         }
+    }
+
+    async awardCoins(gameData) {
+        const currencyManager = require('../currencyManager');
+        
+        if (gameData.winner === 'X') {
+            // Player 1 wins
+            const winReward = await currencyManager.awardCoins(gameData.player1.id, 30, 'Tic-Tac-Toe win');
+            gameData.winnerReward = winReward;
+            
+            // Participation for player 2 (if multiplayer)
+            if (gameData.isMultiplayer) {
+                await currencyManager.awardCoins(gameData.player2.id, 5, 'Tic-Tac-Toe participation');
+            }
+        } else if (gameData.winner === 'O' && gameData.isMultiplayer) {
+            // Player 2 wins (multiplayer only)
+            const winReward = await currencyManager.awardCoins(gameData.player2.id, 30, 'Tic-Tac-Toe win');
+            gameData.winnerReward = winReward;
+            
+            // Participation for player 1
+            await currencyManager.awardCoins(gameData.player1.id, 5, 'Tic-Tac-Toe participation');
+        } else if (gameData.winner === null) {
+            // Tie - both players get participation coins
+            await currencyManager.awardCoins(gameData.player1.id, 5, 'Tic-Tac-Toe participation');
+            if (gameData.isMultiplayer) {
+                await currencyManager.awardCoins(gameData.player2.id, 5, 'Tic-Tac-Toe participation');
+            }
+            gameData.tieReward = 5;
+        }
+        // No coins for losing to AI
     }
 
     recordGameOutcome(gameData) {

@@ -303,13 +303,15 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!cowsay balance") {
-        const balance = currencyManager.getBalance(message.author.id);
+        console.log(`[BALANCE] Getting balance for user ${message.author.id}`);
+        const balance = await currencyManager.getBalance(message.author.id);
+        console.log(`[BALANCE] Retrieved balance: ${balance}`);
         message.reply(`🪙 You have **${balance}** coins!`);
         return;
     }
 
     if (message.content === "!cowsay daily") {
-        const result = currencyManager.getDailyBonus(message.author.id);
+        const result = await currencyManager.getDailyBonus(message.author.id);
         if (result.success) {
             message.reply(
                 `🎁 Daily bonus claimed! +${result.amount} coins! New balance: **${result.newBalance}** coins 🪙`
@@ -321,7 +323,7 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!cowsay leaderboard") {
-        const leaderboard = currencyManager.getLeaderboard();
+        const leaderboard = await currencyManager.getLeaderboard();
         if (leaderboard.length === 0) {
             message.reply("No players found! 🪙");
             return;
@@ -346,6 +348,32 @@ client.on("messageCreate", async (message) => {
                     .join("\n")
             )
             .setFooter({ text: "Play blackjack to earn more coins!" });
+
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content === "!cowsay transactions") {
+        const history = await currencyManager.getTransactionHistory(message.author.id);
+        if (history.length === 0) {
+            message.reply("No transaction history found! 📊");
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle("📊 Transaction History")
+            .setColor(0x00ae86)
+            .setDescription(
+                history
+                    .map((tx, index) => {
+                        const sign = tx.amount >= 0 ? "+" : "";
+                        const date = new Date(tx.created_at).toLocaleDateString();
+                        const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('participation') ? '🎖️' : '🪙';
+                        return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
+                    })
+                    .join("\n\n")
+            )
+            .setFooter({ text: "Last 10 transactions" });
 
         message.reply({ embeds: [embed] });
         return;
@@ -378,7 +406,7 @@ client.on("messageCreate", async (message) => {
             return;
         }
 
-        const balance = currencyManager.getBalance(message.author.id);
+        const balance = await currencyManager.getBalance(message.author.id);
         if (balance < betAmount) {
             message.reply(
                 `You don't have enough coins! You have ${balance} coins but need ${betAmount}.`

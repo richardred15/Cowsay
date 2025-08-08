@@ -378,6 +378,7 @@ class Balatro {
             
             // Check for high ante win condition
             if (game.ante > 8) {
+                await this.awardCoins(game, 'win');
                 this.recordGameOutcome(game, 'win');
             }
         }
@@ -385,12 +386,18 @@ class Balatro {
     }
 
     async gameOver(interaction, game) {
-        // Record game outcome
+        // Award coins and record game outcome
+        await this.awardCoins(game, 'loss');
         this.recordGameOutcome(game, 'loss');
+        
+        let description = `Final Score: Ante ${game.ante}\nTotal Chips: ${game.chips}`;
+        if (game.participationReward) {
+            description += `\n🪙 +${game.participationReward.awarded} coins for reaching Ante ${game.ante}!`;
+        }
         
         const embed = new EmbedBuilder()
             .setTitle('🃏 Game Over!')
-            .setDescription(`Final Score: Ante ${game.ante}\nTotal Chips: ${game.chips}`)
+            .setDescription(description)
             .setColor(0xFF0000);
 
         await interaction.message.edit({ embeds: [embed], components: [] });
@@ -511,6 +518,22 @@ class Balatro {
     async deleteGame(gameId) {
         const sql = 'DELETE FROM balatro_games WHERE id = ?';
         await database.query(sql, [gameId]);
+    }
+
+    async awardCoins(game, result) {
+        const currencyManager = require('../currencyManager');
+        
+        if (result === 'win') {
+            // Perfect game bonus for high ante wins
+            const baseReward = game.ante >= 8 ? 200 : 150; // +50 bonus for ante 8+
+            const winReward = await currencyManager.awardCoins(game.userId, baseReward, game.ante >= 8 ? 'Balatro perfect win' : 'Balatro win');
+            game.winReward = winReward;
+        } else {
+            // Progressive participation rewards based on ante reached
+            const baseReward = Math.min(25 + (game.ante - 1) * 15, 150);
+            const participationReward = await currencyManager.awardCoins(game.userId, baseReward, 'Balatro participation');
+            game.participationReward = participationReward;
+        }
     }
 
     recordGameOutcome(game, result) {

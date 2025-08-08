@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 7,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -76,6 +76,31 @@
         "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },
       "indexes": []
+    },
+    "user_currency": {
+      "columns": {
+        "user_id": "VARCHAR(50) PRIMARY KEY",
+        "balance": "INT DEFAULT 1000",
+        "last_daily": "DATE",
+        "win_streak": "INT DEFAULT 0",
+        "last_win": "DATE",
+        "total_earned": "BIGINT DEFAULT 0",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+      },
+      "indexes": []
+    },
+    "coin_transactions": {
+      "columns": {
+        "id": "INT AUTO_INCREMENT PRIMARY KEY",
+        "user_id": "VARCHAR(50) NOT NULL",
+        "amount": "INT NOT NULL",
+        "reason": "VARCHAR(100) NOT NULL",
+        "balance_before": "INT NOT NULL",
+        "balance_after": "INT NOT NULL",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+      },
+      "indexes": ["user_id", "created_at"]
     }
   }
 }

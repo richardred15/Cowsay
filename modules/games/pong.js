@@ -203,7 +203,7 @@ class Pong {
 
     startGameLoop(interaction, game) {
         game.gameInterval = setInterval(async () => {
-            this.updateBall(game);
+            await this.updateBall(game);
 
             try {
                 const embed = this.createGameEmbed(game);
@@ -221,7 +221,7 @@ class Pong {
         }, 1000);
     }
 
-    updateBall(game) {
+    async updateBall(game) {
         if (game.phase !== "playing") return;
 
         // AI logic for player 2
@@ -282,7 +282,8 @@ class Pong {
         if (game.scores.player1 >= 5 || game.scores.player2 >= 5) {
             game.phase = "ended";
             
-            // Record game outcome
+            // Award coins and record game outcome
+            await this.awardCoins(game);
             this.recordGameOutcome(game);
         }
     }
@@ -311,7 +312,13 @@ class Pong {
                 game.scores.player1 >= 5
                     ? game.player1.name
                     : game.player2.name;
-            description = `🎉 **${winner}** wins!`;
+            let coinInfo = "";
+            if (game.winnerReward && winner !== "AI") {
+                coinInfo = `\n🪙 +${game.winnerReward.awarded} coins`;
+                if (game.winnerReward.firstWinBonus) coinInfo += " (First win bonus!)";
+                if (game.winnerReward.streak > 1) coinInfo += ` (${game.winnerReward.streak} win streak!)`;
+            }
+            description = `🎉 **${winner}** wins!${coinInfo}`;
         }
 
         const embed = new EmbedBuilder()
@@ -444,6 +451,44 @@ class Pong {
             if (game === gameData) return key;
         }
         return null;
+    }
+
+    async awardCoins(game) {
+        const currencyManager = require('../currencyManager');
+        const winnerId = game.scores.player1 >= 5 ? game.player1.id : game.player2.id;
+        const loserId = winnerId === game.player1.id ? game.player2.id : game.player1.id;
+        const winnerScore = winnerId === game.player1.id ? game.scores.player1 : game.scores.player2;
+        const loserScore = winnerId === game.player1.id ? game.scores.player2 : game.scores.player1;
+        
+        console.log(`[PONG] Awarding coins - Winner: ${winnerId}, Loser: ${loserId}`);
+        
+        // Check for perfect game (shutout 5-0)
+        const isPerfectGame = winnerScore === 5 && loserScore === 0;
+        const baseReward = isPerfectGame ? 75 : 50; // +25 bonus for shutout
+        
+        // Award coins to winner
+        if (winnerId === game.player1.id) {
+            console.log(`[PONG] Player 1 won, awarding ${baseReward} coins to ${winnerId}`);
+            const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
+            game.winnerReward = winReward;
+            console.log(`[PONG] Win reward result:`, winReward);
+        } else if (!game.player2.isAI) {
+            console.log(`[PONG] Player 2 won, awarding ${baseReward} coins to ${winnerId}`);
+            const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
+            game.winnerReward = winReward;
+            console.log(`[PONG] Win reward result:`, winReward);
+        }
+        
+        // Award participation coins to loser (10 coins)
+        if (loserId === game.player1.id) {
+            console.log(`[PONG] Player 1 lost, awarding 10 participation coins to ${loserId}`);
+            const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
+            game.loserReward = participationReward;
+        } else if (!game.player2.isAI && loserId === game.player2.id) {
+            console.log(`[PONG] Player 2 lost, awarding 10 participation coins to ${loserId}`);
+            const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
+            game.loserReward = participationReward;
+        }
     }
 
     recordGameOutcome(game) {

@@ -21,7 +21,9 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 - **Balatro**: Poker-based scoring game (slash command)
 - **Pong**: Classic 2-player paddle game with AI opponent
 - **Tic-Tac-Toe**: Challenge other players
-- **Currency System**: Earn coins, daily bonuses, leaderboards
+- **Universal Coin System**: Database-backed currency with streak bonuses
+- **Perfect Game Bonuses**: Extra rewards for exceptional performance
+- **Transaction History**: Complete audit trail of all coin movements
 - **Game Statistics**: Comprehensive outcome tracking with privacy controls
 
 ### 🛠️ Utilities
@@ -132,6 +134,7 @@ npm start
 - `!cowsay balance` - Check your coins
 - `!cowsay daily` - Claim daily bonus
 - `!cowsay leaderboard` - Top coin holders
+- `!cowsay transactions` - View transaction history
 
 ### Statistics
 - `!cowsay stats` - View your personal game statistics
@@ -181,22 +184,44 @@ npm start
 - Interactive button-based gameplay
 - Win detection and draw handling
 
+## Coin Rewards System
+
+### Base Rewards
+- **Pong**: 50 coins (win), 10 coins (participation)
+- **Tic-Tac-Toe**: 30 coins (win), 5 coins (participation)
+- **Battleship**: 100 coins (win), 15 coins (participation)
+- **Balatro**: 25-150 coins (progressive based on ante reached)
+- **Blackjack**: 2x bet (win), 2.5x bet (blackjack), bet returned (push)
+
+### Bonus Multipliers
+- **Win Streaks**: +10% per consecutive win (max 50% bonus)
+- **First Win of Day**: 2x multiplier on all rewards
+- **Perfect Games**: 
+  - Pong shutout (5-0): +25 bonus coins
+  - Balatro ante 8+: +50 bonus coins
+  - Battleship perfect: Coming soon
+
+### Daily System
+- **Daily Bonus**: Up to 100 coins for players under 1000 coins
+- **Streak Tracking**: Consecutive wins tracked across all games
+- **Transaction History**: `!cowsay transactions` shows last 10 transactions
+
 ## Architecture
 
 ### Core Modules
 - **LLM Integration**: Groq, OpenAI, or local model support
 - **Game Manager**: Unified game system with interaction routing
-- **Currency System**: Coin economy with daily bonuses
+- **Currency System**: Database-backed coin economy with streak bonuses and transaction logging
 - **Context Management**: Conversation history and threading
 - **Security**: Input validation and rate limiting
 - **Statistics System**: Comprehensive game outcome tracking with privacy controls
 - **Permission System**: Discord-native role-based access control
 - **Rivals System**: Per-server rival bot configuration for dynamic AI behavior
 
-### Database Schema (v5)
+### Database Schema (v7)
+- **User Currency**: Balances, streaks, daily bonuses, and earnings tracking
+- **Coin Transactions**: Complete audit trail of all coin movements
 - **Balatro Games**: Persistent poker game states
-- **Currency**: User balances and transaction history
-- **Context**: Conversation history storage
 - **Game Outcomes**: Comprehensive statistics for all games
 - **Server Rivals**: Per-server rival bot configurations
 - **Role Permissions**: Discord role to permission level mappings
@@ -215,7 +240,7 @@ npm start
 │   └── ...                 # Other utility modules
 ├── config.js               # Configuration management
 ├── index.js               # Main bot entry point
-└── schema.json            # Database schema (v5)
+└── schema.json            # Database schema (v7)
 ```
 
 ## Development
