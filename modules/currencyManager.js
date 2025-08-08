@@ -156,7 +156,7 @@ class CurrencyManager {
         try {
             const rows = await database.query(
                 'SELECT user_id as userId, balance FROM user_currency WHERE balance > 0 ORDER BY balance DESC LIMIT ?',
-                [limit]
+                [parseInt(limit)]
             );
             
             return rows || [];
@@ -281,7 +281,7 @@ class CurrencyManager {
         try {
             const rows = await database.query(
                 'SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
-                [userId, limit]
+                [userId, parseInt(limit)]
             );
             return rows || [];
         } catch (error) {
@@ -360,7 +360,7 @@ class CurrencyManager {
         try {
             const rows = await database.query(
                 'SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ?',
-                [limit]
+                [parseInt(limit)]
             );
             return rows || [];
         } catch (error) {
