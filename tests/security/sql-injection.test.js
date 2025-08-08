@@ -27,7 +27,7 @@ describe('SQL Injection Prevention', () => {
     "'; UPDATE user_currency SET balance = 999999 WHERE user_id = 'victim'; --"
   ];
 
-  test('Currency operations resist SQL injection', async () => {
+  test('Game reward operations resist SQL injection', async () => {
     const currencyManager = require('../../modules/currencyManager');
     
     // Count tables before test
@@ -35,27 +35,24 @@ describe('SQL Injection Prevention', () => {
     const tableCountBefore = tablesBefore.length;
     
     for (const maliciousInput of maliciousInputs) {
-      // Test getBalance with malicious user ID
-      const balance = await currencyManager.getBalance(maliciousInput);
+      // Test awardCoins (used by games) with malicious user ID and reason
+      const result = await currencyManager.awardCoins(maliciousInput, 100, maliciousInput);
       
-      // Should return default balance (1000) regardless of whether record was created
-      expect(balance).toBe(1000);
+      // Should return valid result object
+      expect(typeof result).toBe('object');
+      expect(result).toHaveProperty('awarded');
+      expect(result).toHaveProperty('newBalance');
       
-      // Check if record was created (flexible - could be 0 or 1)
-      const [rows] = await connection.execute(
+      // Check if user record was created
+      const [userRows] = await connection.execute(
         'SELECT user_id FROM user_currency WHERE user_id = ?',
         [maliciousInput]
       );
       
-      if (rows.length > 0) {
+      if (userRows.length > 0) {
         // If record exists, verify malicious input stored as literal string
-        expect(rows[0].user_id).toBe(maliciousInput);
+        expect(userRows[0].user_id).toBe(maliciousInput);
       }
-      
-      // Test addBalance - should not throw regardless of success/failure
-      await expect(
-        currencyManager.addBalance(maliciousInput, 100)
-      ).resolves.not.toThrow();
       
       // Verify database structure intact (most important security check)
       const [tablesAfter] = await connection.execute('SHOW TABLES');
@@ -72,10 +69,9 @@ describe('SQL Injection Prevention', () => {
   test('Transaction queries resist SQL injection', async () => {
     const currencyManager = require('../../modules/currencyManager');
     
-    // Use a known valid user ID to create baseline transactions
+    // Use a known valid user ID to create baseline transactions with awardCoins
     const validUserId = '123456789';
-    await currencyManager.getBalance(validUserId);
-    await currencyManager.addBalance(validUserId, 50);
+    await currencyManager.awardCoins(validUserId, 50, 'Test reward');
     
     for (const maliciousInput of maliciousInputs) {
       // Test getTransactionHistory with malicious input
@@ -101,11 +97,11 @@ describe('SQL Injection Prevention', () => {
   test('Admin queries resist SQL injection', async () => {
     const currencyManager = require('../../modules/currencyManager');
     
-    // Count total transactions before test
-    const [transactionsBefore] = await connection.execute('SELECT COUNT(*) as count FROM coin_transactions');
-    const transactionCountBefore = transactionsBefore[0].count;
-    
     for (const maliciousInput of maliciousInputs) {
+      // Count transactions before this specific test
+      const [transactionsBefore] = await connection.execute('SELECT COUNT(*) as count FROM coin_transactions');
+      const transactionCountBefore = transactionsBefore[0].count;
+      
       // Test admin functions with malicious input - should not throw
       const result = await currencyManager.adminAddCoins(maliciousInput, 100, maliciousInput);
       
@@ -129,23 +125,42 @@ describe('SQL Injection Prevention', () => {
       const [transactionsAfter] = await connection.execute('SELECT COUNT(*) as count FROM coin_transactions');
       const transactionCountAfter = transactionsAfter[0].count;
       
-      // Transaction count should only increase by 0 or 1, never decrease
+      // Transaction count should only increase by 0 or 1 for this iteration
       expect(transactionCountAfter).toBeGreaterThanOrEqual(transactionCountBefore);
       expect(transactionCountAfter - transactionCountBefore).toBeLessThanOrEqual(1);
     }
   });
 
-  test('Leaderboard queries resist SQL injection', async () => {
+  test('Shop operations resist SQL injection', async () => {
     const currencyManager = require('../../modules/currencyManager');
     
-    // Test with malicious limit parameter (simulated)
+    for (const maliciousInput of maliciousInputs) {
+      // Test spendCoins (used by shop) with malicious user ID and reason
+      await currencyManager.awardCoins(maliciousInput, 200, 'Setup coins'); // Give coins first
+      
+      const success = await currencyManager.spendCoins(maliciousInput, 100, maliciousInput);
+      expect(typeof success).toBe('boolean');
+      
+      // Verify transaction was logged with malicious input as literal data
+      const [rows] = await connection.execute(
+        'SELECT user_id, reason FROM coin_transactions WHERE user_id = ? AND amount < 0 ORDER BY created_at DESC LIMIT 1',
+        [maliciousInput]
+      );
+      
+      if (rows.length > 0) {
+        expect(rows[0].user_id).toBe(maliciousInput);
+        expect(rows[0].reason).toBe(maliciousInput);
+      }
+    }
+    
+    // Test getLeaderboard (read-only but still important)
     const leaderboard = await currencyManager.getLeaderboard(10);
     expect(Array.isArray(leaderboard)).toBe(true);
     expect(leaderboard.length).toBeLessThanOrEqual(10);
     
     // Verify no unauthorized data in results
     leaderboard.forEach(entry => {
-      expect(entry).toHaveProperty('user_id');
+      expect(entry).toHaveProperty('userId');
       expect(entry).toHaveProperty('balance');
       expect(typeof entry.balance).toBe('number');
     });
