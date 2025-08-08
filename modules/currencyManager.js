@@ -154,9 +154,9 @@ class CurrencyManager {
 
     async getLeaderboard(limit = 10) {
         try {
+            const safeLimit = parseInt(limit) || 10;
             const rows = await database.query(
-                'SELECT user_id as userId, balance FROM user_currency WHERE balance > 0 ORDER BY balance DESC LIMIT ?',
-                [parseInt(limit) || 10]
+                `SELECT user_id as userId, balance FROM user_currency WHERE balance > 0 ORDER BY balance DESC LIMIT ${safeLimit}`
             );
             
             return rows || [];
@@ -279,9 +279,10 @@ class CurrencyManager {
     
     async getTransactionHistory(userId, limit = 10) {
         try {
+            const safeLimit = parseInt(limit) || 10;
             const rows = await database.query(
-                'SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
-                [userId, parseInt(limit) || 10]
+                `SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ${safeLimit}`,
+                [userId]
             );
             return rows || [];
         } catch (error) {
@@ -358,9 +359,9 @@ class CurrencyManager {
     
     async getAllTransactions(limit = 50) {
         try {
+            const safeLimit = parseInt(limit) || 50;
             const rows = await database.query(
-                'SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ?',
-                [parseInt(limit) || 50]
+                `SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ${safeLimit}`
             );
             return rows || [];
         } catch (error) {
