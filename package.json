@@ -5,7 +5,13 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test:security": "jest tests/security --verbose --bail",
+    "test:unit": "jest tests/unit --verbose",
+    "test:integration": "jest tests/integration --verbose",
+    "test:performance": "node tests/performance/runner.js",
+    "test:db:setup": "node tests/fixtures/db-setup.js",
+    "test:all": "npm run test:security && npm run test:unit && npm run test:integration && npm run test:performance"
   },
   "dependencies": {
     "discord.js": "^14.0.0",
@@ -15,6 +21,10 @@
     "@xenova/transformers": "^2.17.2",
     "ws": "^8.14.0",
     "mysql2": "^3.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
   },
   "keywords": ["discord", "bot", "cowsay", "ascii"],
   "author": "",
