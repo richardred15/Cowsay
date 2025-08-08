@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -85,6 +85,8 @@
         "win_streak": "INT DEFAULT 0",
         "last_win": "DATE",
         "total_earned": "BIGINT DEFAULT 0",
+        "daily_boost_expires": "TIMESTAMP NULL",
+        "streak_shield_count": "INT DEFAULT 0",
         "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
       },

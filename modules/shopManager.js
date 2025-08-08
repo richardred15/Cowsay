@@ -89,13 +89,15 @@ class ShopManager {
 
             const item = items[0];
 
-            // Check if already purchased
-            const purchases = await database.query(
-                'SELECT 1 FROM user_purchases WHERE user_id = ? AND item_id = ?',
-                [userId, itemId]
-            );
-            if (purchases && purchases.length > 0) {
-                return { success: false, message: 'You already own this item!' };
+            // Check if already purchased (only for characters)
+            if (item.category === 'character') {
+                const purchases = await database.query(
+                    'SELECT 1 FROM user_purchases WHERE user_id = ? AND item_id = ?',
+                    [userId, itemId]
+                );
+                if (purchases && purchases.length > 0) {
+                    return { success: false, message: 'You already own this character!' };
+                }
             }
 
             // Check balance
@@ -104,18 +106,27 @@ class ShopManager {
                 return { success: false, message: `Insufficient coins! Need ${item.price}, have ${balance}` };
             }
 
-            // Process purchase (no explicit transaction - rely on individual operations)
             // Deduct coins first
             const spendSuccess = await currencyManager.spendCoins(userId, item.price, `Purchased ${item.name}`);
             if (!spendSuccess) {
                 return { success: false, message: 'Failed to deduct coins. Please try again.' };
             }
             
-            // Add to purchases
-            await database.query(
-                'INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?)',
-                [userId, itemId]
-            );
+            // Handle different item types
+            if (item.category === 'character') {
+                // Add character to purchases
+                await database.query(
+                    'INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?)',
+                    [userId, itemId]
+                );
+            } else if (item.category === 'boost') {
+                // Activate boost immediately
+                if (itemId === 'daily_boost') {
+                    await currencyManager.activateDailyBoost(userId);
+                } else if (itemId === 'streak_shield') {
+                    await currencyManager.addStreakShield(userId, 1);
+                }
+            }
 
             return { 
                 success: true, 

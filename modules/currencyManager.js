@@ -127,14 +127,19 @@ class CurrencyManager {
                 return { success: false, message: "You have enough coins! Daily bonus is for players with less than 1000 coins." };
             }
             
-            const bonus = Math.min(100, 1000 - player.balance);
+            let bonus = Math.min(100, 1000 - player.balance);
+            const hasBoost = await this.hasDailyBoost(userId);
+            
+            if (hasBoost) {
+                bonus *= 2;
+            }
             
             await database.query(
                 'UPDATE user_currency SET balance = balance + ?, last_daily = ?, total_earned = total_earned + ? WHERE user_id = ?',
                 [bonus, today, bonus, userId]
             );
             
-            return { success: true, amount: bonus, newBalance: player.balance + bonus };
+            return { success: true, amount: bonus, newBalance: player.balance + bonus, boosted: hasBoost };
         } catch (error) {
             console.log('Error getting daily bonus:', error.message);
             return { success: false, message: "Error processing daily bonus." };
@@ -339,6 +344,119 @@ class CurrencyManager {
         } catch (error) {
             console.log('Error getting all transactions:', error.message);
             return [];
+        }
+    }
+    
+    async activateDailyBoost(userId) {
+        try {
+            const expires = new Date();
+            expires.setDate(expires.getDate() + 7); // 7 days from now
+            
+            await database.query(
+                'UPDATE user_currency SET daily_boost_expires = ? WHERE user_id = ?',
+                [expires.toISOString(), userId]
+            );
+            
+            return true;
+        } catch (error) {
+            console.log('Error activating daily boost:', error.message);
+            return false;
+        }
+    }
+    
+    async hasDailyBoost(userId) {
+        try {
+            const rows = await database.query(
+                'SELECT daily_boost_expires FROM user_currency WHERE user_id = ?',
+                [userId]
+            );
+            
+            if (!rows || rows.length === 0) return false;
+            
+            const expires = rows[0].daily_boost_expires;
+            if (!expires) return false;
+            
+            return new Date(expires) > new Date();
+        } catch (error) {
+            console.log('Error checking daily boost:', error.message);
+            return false;
+        }
+    }
+    
+    async addStreakShield(userId, count = 1) {
+        try {
+            await database.query(
+                'UPDATE user_currency SET streak_shield_count = streak_shield_count + ? WHERE user_id = ?',
+                [count, userId]
+            );
+            
+            return true;
+        } catch (error) {
+            console.log('Error adding streak shield:', error.message);
+            return false;
+        }
+    }
+    
+    async hasStreakShield(userId) {
+        try {
+            const rows = await database.query(
+                'SELECT streak_shield_count FROM user_currency WHERE user_id = ?',
+                [userId]
+            );
+            
+            if (!rows || rows.length === 0) return false;
+            
+            return (rows[0].streak_shield_count || 0) > 0;
+        } catch (error) {
+            console.log('Error checking streak shield:', error.message);
+            return false;
+        }
+    }
+    
+    async recordLoss(userId) {
+        try {
+            const hasShield = await this.hasStreakShield(userId);
+            if (hasShield) {
+                await database.query(
+                    'UPDATE user_currency SET streak_shield_count = streak_shield_count - 1 WHERE user_id = ?',
+                    [userId]
+                );
+                return { shieldUsed: true };
+            } else {
+                await database.query(
+                    'UPDATE user_currency SET win_streak = 0 WHERE user_id = ?',
+                    [userId]
+                );
+                return { shieldUsed: false };
+            }
+        } catch (error) {
+            console.log('Error recording loss:', error.message);
+            return { shieldUsed: false };
+        }
+    }
+    
+    async getBoostStatus(userId) {
+        try {
+            const rows = await database.query(
+                'SELECT daily_boost_expires, streak_shield_count FROM user_currency WHERE user_id = ?',
+                [userId]
+            );
+            
+            if (!rows || rows.length === 0) {
+                return { dailyBoost: false, streakShields: 0 };
+            }
+            
+            const user = rows[0];
+            const dailyBoost = user.daily_boost_expires && new Date(user.daily_boost_expires) > new Date();
+            
+            return {
+                dailyBoost,
+                dailyBoostExpires: user.daily_boost_expires,
+                streakShields: user.streak_shield_count || 0
+            };
+        } catch (error) {
+            console.log('Error getting boost status:', error.message);
+            return { dailyBoost: false, streakShields: 0 };
         }
     }
 }

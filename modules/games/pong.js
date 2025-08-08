@@ -479,15 +479,19 @@ class Pong {
             console.log(`[PONG] Win reward result:`, winReward);
         }
         
-        // Award participation coins to loser (10 coins)
+        // Award participation coins to loser and handle streak
         if (loserId === game.player1.id) {
             console.log(`[PONG] Player 1 lost, awarding 10 participation coins to ${loserId}`);
             const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
+            const lossResult = await currencyManager.recordLoss(loserId);
             game.loserReward = participationReward;
+            game.shieldUsed = lossResult.shieldUsed;
         } else if (!game.player2.isAI && loserId === game.player2.id) {
             console.log(`[PONG] Player 2 lost, awarding 10 participation coins to ${loserId}`);
             const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
+            const lossResult = await currencyManager.recordLoss(loserId);
             game.loserReward = participationReward;
+            game.shieldUsed = lossResult.shieldUsed;
         }
     }
 

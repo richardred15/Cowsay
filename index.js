@@ -383,16 +383,32 @@ client.on("messageCreate", async (message) => {
     if (message.content === "!cowsay balance") {
         console.log(`[BALANCE] Getting balance for user ${message.author.id}`);
         const balance = await currencyManager.getBalance(message.author.id);
+        const boosts = await currencyManager.getBoostStatus(message.author.id);
         console.log(`[BALANCE] Retrieved balance: ${balance}`);
-        message.reply(`🪙 You have **${balance}** coins!`);
+        
+        let response = `🪙 You have **${balance}** coins!`;
+        
+        if (boosts.dailyBoost || boosts.streakShields > 0) {
+            response += '\n\n**Active Boosts:**';
+            if (boosts.dailyBoost) {
+                const expires = new Date(boosts.dailyBoostExpires).toLocaleDateString();
+                response += `\n⚡ Daily Boost (2x daily bonus until ${expires})`;
+            }
+            if (boosts.streakShields > 0) {
+                response += `\n🛡️ Streak Shield (${boosts.streakShields} protection${boosts.streakShields > 1 ? 's' : ''})`;
+            }
+        }
+        
+        message.reply(response);
         return;
     }
 
     if (message.content === "!cowsay daily") {
         const result = await currencyManager.getDailyBonus(message.author.id);
         if (result.success) {
+            const boostText = result.boosted ? ' (2x Daily Boost applied!)' : '';
             message.reply(
-                `🎁 Daily bonus claimed! +${result.amount} coins! New balance: **${result.newBalance}** coins 🪙`
+                `🎁 Daily bonus claimed! +${result.amount} coins${boostText} New balance: **${result.newBalance}** coins 🪙`
             );
         } else {
             message.reply(`❌ ${result.message}`);
@@ -462,6 +478,7 @@ client.on("messageCreate", async (message) => {
             const items = await shopManager.getShopItems();
             const userPurchases = await shopManager.getUserPurchases(message.author.id);
             const userBalance = await currencyManager.getBalance(message.author.id);
+            const boosts = await currencyManager.getBoostStatus(message.author.id);
             
             if (!items || items.length === 0) {
                 message.reply("Shop is currently empty! 🛒");
@@ -478,8 +495,21 @@ client.on("messageCreate", async (message) => {
             for (const category of categories) {
                 const categoryItems = items.filter(item => item.category === category);
                 const itemList = categoryItems.map(item => {
-                    const owned = userPurchases.includes(item.item_id);
-                    const status = owned ? "✅ Owned" : `💰 ${item.price} coins`;
+                    let status;
+                    if (category === 'character') {
+                        const owned = userPurchases.includes(item.item_id);
+                        status = owned ? "✅ Owned" : `💰 ${item.price} coins`;
+                    } else if (category === 'boost') {
+                        if (item.item_id === 'daily_boost') {
+                            status = boosts.dailyBoost ? "⚡ Active" : `💰 ${item.price} coins`;
+                        } else if (item.item_id === 'streak_shield') {
+                            status = boosts.streakShields > 0 ? `🛡️ ${boosts.streakShields} owned` : `💰 ${item.price} coins`;
+                        } else {
+                            status = `💰 ${item.price} coins`;
+                        }
+                    } else {
+                        status = `💰 ${item.price} coins`;
+                    }
                     return `**${item.name}** - ${status}\n*${item.description}*`;
                 }).join('\n\n');
                 
@@ -493,19 +523,29 @@ client.on("messageCreate", async (message) => {
 
             // Create buttons for purchasable items
             const buttons = [];
-            const availableItems = items.filter(item => !userPurchases.includes(item.item_id));
             
-            for (let i = 0; i < Math.min(availableItems.length, 25); i++) { // Discord limit of 25 buttons
-                const item = availableItems[i];
-                const canAfford = userBalance >= item.price;
+            for (const item of items) {
+                let canPurchase = userBalance >= item.price;
                 
-                buttons.push(
-                    new ButtonBuilder()
-                        .setCustomId(`shop_buy_${item.item_id}`)
-                        .setLabel(`${item.name} (${item.price}🪙)`)
-                        .setStyle(canAfford ? ButtonStyle.Primary : ButtonStyle.Secondary)
-                        .setDisabled(!canAfford)
-                );
+                // Special logic for different item types
+                if (item.category === 'character' && userPurchases.includes(item.item_id)) {
+                    continue; // Skip owned characters
+                } else if (item.category === 'boost') {
+                    if (item.item_id === 'daily_boost' && boosts.dailyBoost) {
+                        continue; // Skip if daily boost is active
+                    }
+                    // Streak shields can always be purchased (stackable)
+                }
+                
+                if (buttons.length < 25) { // Discord limit
+                    buttons.push(
+                        new ButtonBuilder()
+                            .setCustomId(`shop_buy_${item.item_id}`)
+                            .setLabel(`${item.name} (${item.price}🪙)`)
+                            .setStyle(canPurchase ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                            .setDisabled(!canPurchase)
+                    );
+                }
             }
 
             const components = [];
