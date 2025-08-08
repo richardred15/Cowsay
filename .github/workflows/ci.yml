@@ -112,7 +112,8 @@ jobs:
                   GROQ_API_KEY: mock_key
 
             - name: Integration Tests
-              run: timeout 90s npm run test:integration || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
+              #run: timeout 90s npm run test:integration || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
+              run: npm run test:integration
               timeout-minutes: 2
               env:
                   NODE_ENV: test
