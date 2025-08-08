@@ -144,7 +144,7 @@ describe('Shop Integration Tests', () => {
       
       // Log gift transaction
       await database.query(
-        'INSERT INTO gift_transactions (sender_id, recipient_id, item_id, gift_cost, message) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO gift_transactions (sender_id, recipient_id, item_id, cost, message) VALUES (?, ?, ?, ?, ?)',
         [senderId, recipientId, itemId, giftCost, 'Test gift']
       );
       

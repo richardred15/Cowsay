@@ -57,13 +57,13 @@ describe("Games Integration Tests", () => {
             await currencyManager.createUser(userId);
 
             // Set up previous win
-            await currencyManager.database.query(
+            await database.query(
                 "UPDATE user_currency SET last_win = ?, win_streak = 1 WHERE user_id = ?",
                 [yesterdayStr, userId]
             );
 
             // Debug: Check what was actually set
-            const [userCheck] = await currencyManager.database.query(
+            const [userCheck] = await database.query(
                 "SELECT last_win, win_streak FROM user_currency WHERE user_id = ?",
                 [userId]
             );
@@ -131,13 +131,13 @@ describe("Games Integration Tests", () => {
             yesterday.setDate(yesterday.getDate() - 1);
             const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-            await currencyManager.database.query(
+            await database.query(
                 "UPDATE user_currency SET last_win = ? WHERE user_id = ?",
                 [yesterdayStr, userId]
             );
 
             // Debug: Check user state
-            const [userState] = await currencyManager.database.query(
+            const [userState] = await database.query(
                 "SELECT last_win, win_streak FROM user_currency WHERE user_id = ?",
                 [userId]
             );
