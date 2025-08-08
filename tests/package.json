@@ -1,17 +1,17 @@
 {
-  "name": "cowsay-tests",
-  "version": "1.0.0",
-  "scripts": {
-    "test:security": "jest tests/security --verbose --bail",
-    "test:unit": "jest tests/unit --verbose",
-    "test:integration": "jest tests/integration --verbose",
-    "test:performance": "node tests/performance/runner.js",
-    "test:db:setup": "node tests/fixtures/db-setup.js",
-    "test:all": "npm run test:security && npm run test:unit && npm run test:integration && npm run test:performance"
-  },
-  "devDependencies": {
-    "jest": "^29.7.0",
-    "supertest": "^6.3.3",
-    "ws": "^8.14.2"
-  }
+    "name": "cowsay-tests",
+    "version": "1.0.0",
+    "scripts": {
+        "test:security": "jest tests/security --verbose --bail --detectOpenHandles",
+        "test:unit": "jest tests/unit --verbose --detectOpenHandles",
+        "test:integration": "jest tests/integration --verbose --detectOpenHandles",
+        "test:performance": "node tests/performance/runner.js",
+        "test:db:setup": "node tests/fixtures/db-setup.js",
+        "test:all": "npm run test:security && npm run test:unit && npm run test:integration && npm run test:performance"
+    },
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "supertest": "^6.3.3",
+        "ws": "^8.14.2"
+    }
 }
