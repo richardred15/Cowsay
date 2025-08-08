@@ -83,23 +83,38 @@ describe('Command Integration Tests', () => {
 
   describe('Boost System', () => {
     test('should activate daily boost', async () => {
-      const success = await currencyManager.activateDailyBoost('123456789');
+      const userId = '123456789';
+      
+      // Ensure user exists first
+      await currencyManager.createUser(userId);
+      
+      const success = await currencyManager.activateDailyBoost(userId);
       expect(success).toBe(true);
       
-      const hasBoost = await currencyManager.hasDailyBoost('123456789');
+      const hasBoost = await currencyManager.hasDailyBoost(userId);
       expect(hasBoost).toBe(true);
     });
 
     test('should add streak shield', async () => {
-      const success = await currencyManager.addStreakShield('123456789', 1);
+      const userId = '123456789';
+      
+      // Ensure user exists first
+      await currencyManager.createUser(userId);
+      
+      const success = await currencyManager.addStreakShield(userId, 1);
       expect(success).toBe(true);
       
-      const hasShield = await currencyManager.hasStreakShield('123456789');
+      const hasShield = await currencyManager.hasStreakShield(userId);
       expect(hasShield).toBe(true);
     });
 
     test('should get boost status', async () => {
-      const status = await currencyManager.getBoostStatus('123456789');
+      const userId = '123456789';
+      
+      // Ensure user exists first
+      await currencyManager.createUser(userId);
+      
+      const status = await currencyManager.getBoostStatus(userId);
       expect(status).toHaveProperty('dailyBoost');
       expect(status).toHaveProperty('streakShields');
     });

@@ -163,6 +163,7 @@ jobs:
 
             - name: Performance Tests
               run: npm run test:performance
+              timeout-minutes: 5
               env:
                   NODE_ENV: test
                   DB_HOST: 127.0.0.1

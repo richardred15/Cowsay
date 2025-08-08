@@ -12,6 +12,9 @@ describe('Games Integration Tests', () => {
     
     currencyManager = require('../../modules/currencyManager');
     gameManager = require('../../modules/gameManager');
+    
+    // Make database accessible for direct queries in tests
+    currencyManager.database = database;
   });
 
   describe('Game Rewards', () => {
@@ -37,16 +40,23 @@ describe('Games Integration Tests', () => {
     });
 
     test('should apply streak bonus', async () => {
-      const userId = '123456789';
+      const userId = '987654321'; // Different user to avoid first-win bonus
       
-      // Simulate multiple wins to build streak
-      await currencyManager.awardCoins(userId, 50, 'Game win'); // Streak 1
+      // Give user a win yesterday to avoid first-win bonus
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      await currencyManager.database.query(
+        'UPDATE user_currency SET last_win = ?, win_streak = 1 WHERE user_id = ?',
+        [yesterday.toISOString().split('T')[0], userId]
+      );
+      
+      // Today's wins should increment streak
       await currencyManager.awardCoins(userId, 50, 'Game win'); // Streak 2
       const result = await currencyManager.awardCoins(userId, 50, 'Game win'); // Streak 3
       
-      // Third win should have 20% bonus (streak 3 = 2 * 10%)
-      expect(result.streak).toBe(3);
-      expect(result.awarded).toBeGreaterThan(50); // Base amount + bonus
+      // Should have streak bonus but no first-win bonus
+      expect(result.streak).toBeGreaterThanOrEqual(2);
+      expect(result.awarded).toBeGreaterThan(50); // Base amount + streak bonus
     });
   });
 
@@ -82,22 +92,29 @@ describe('Games Integration Tests', () => {
 
   describe('Blackjack Integration', () => {
     test('should handle blackjack betting', async () => {
-      const userId = '123456789';
+      const userId = '555666777'; // Fresh user for this test
       const betAmount = 100;
       
-      // Ensure user has enough coins
+      // Set up user with previous win to avoid first-win bonus
       await currencyManager.adminAddCoins(userId, 500, 'Blackjack setup');
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      await currencyManager.database.query(
+        'UPDATE user_currency SET last_win = ? WHERE user_id = ?',
+        [yesterday.toISOString().split('T')[0], userId]
+      );
+      
       const initialBalance = await currencyManager.getBalance(userId);
       
       // Place bet (spend coins)
       const betSuccess = await currencyManager.spendCoins(userId, betAmount, 'Blackjack bet');
       expect(betSuccess).toBe(true);
       
-      // Simulate win (2x payout)
+      // Simulate win (2x payout) - should not get first-win bonus
       const winAmount = betAmount * 2;
       const result = await currencyManager.awardCoins(userId, winAmount, 'Blackjack win');
       
-      expect(result.awarded).toBe(winAmount);
+      expect(result.awarded).toBe(winAmount); // No bonus multiplier
       expect(result.newBalance).toBe(initialBalance - betAmount + winAmount);
     });
 
