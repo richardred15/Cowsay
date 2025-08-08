@@ -15,6 +15,10 @@ describe("Games Integration Tests", () => {
         gameManager = require("../../modules/gameManager");
     });
 
+    afterAll(async () => {
+        await database.close();
+    });
+
     describe("Game Rewards", () => {
         test("should award coins for game win", async () => {
             const userId = "123456789";

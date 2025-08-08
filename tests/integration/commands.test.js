@@ -14,6 +14,10 @@ describe("Command Integration Tests", () => {
         currencyManager = require("../../modules/currencyManager");
     });
 
+    afterAll(async () => {
+        await database.close();
+    });
+
     beforeEach(() => {
         mockMessage = {
             author: { id: "123456789", username: "testuser" },

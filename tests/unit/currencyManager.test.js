@@ -8,6 +8,11 @@ describe('CurrencyManager Unit Tests', () => {
     await database.init();
   });
 
+  afterAll(async () => {
+    const database = require('../../modules/database');
+    await database.close();
+  });
+
   describe('Streak Bonus Calculations', () => {
     test('should calculate correct streak bonus', () => {
       // Test the streak bonus logic: +10% per win, max 50%

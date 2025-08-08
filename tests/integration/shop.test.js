@@ -13,6 +13,10 @@ describe('Shop Integration Tests', () => {
     currencyManager = require('../../modules/currencyManager');
   });
 
+  afterAll(async () => {
+    await database.close();
+  });
+
   beforeEach(async () => {
     // Give test user enough coins for purchases
     await currencyManager.adminAddCoins('123456789', 2000, 'Test setup');
