@@ -32,7 +32,7 @@ class ToolManager {
         return this.animalSayTool;
     }
 
-    handleAnimalSay(animal, message) {
+    async handleAnimalSay(animal, message, userId = null) {
         try {
             const animalValidation = SecurityUtils.validateInput(animal, 50);
             const messageValidation = SecurityUtils.validateInput(message, 500);
@@ -44,7 +44,7 @@ class ToolManager {
                 throw new Error(`Invalid message: ${messageValidation.error}`);
             }
             
-            return characterManager.generateAscii(animal, message);
+            return await characterManager.generateAscii(animal, message, userId);
         } catch (error) {
             Logger.error('Animal say tool error', { animal, error: error.message });
             throw error;

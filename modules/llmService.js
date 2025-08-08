@@ -14,10 +14,10 @@ class LLMService {
         }
         
         const completion = await this.llmProvider.createCompletion(messages, { ...defaultOptions, ...options });
-        return this.processCompletion(completion);
+        return await this.processCompletion(completion);
     }
 
-    processCompletion(completion) {
+    async processCompletion(completion) {
         const choice = completion.choices[0];
         let answer = choice?.message?.content || "";
 
@@ -26,7 +26,7 @@ class LLMService {
                 if (toolCall.function.name === "animalsay") {
                     try {
                         const args = JSON.parse(toolCall.function.arguments);
-                        const asciiArt = toolManager.handleAnimalSay(args.animal, args.message);
+                        const asciiArt = await toolManager.handleAnimalSay(args.animal, args.message);
                         answer += `\n\`\`\`\n${asciiArt}\n\`\`\`\n`;
                     } catch (error) {
                         console.error("Tool call error:", error);
@@ -54,7 +54,7 @@ class LLMService {
 
     async sendResponse(message, answer) {
         const truncatedAnswer = this.truncateResponse(answer);
-        message.reply(truncatedAnswer);
+        return await message.reply(truncatedAnswer);
     }
 
     buildSystemMessage(systemPrompt) {
