@@ -7,7 +7,7 @@
         "start": "node index.js",
         "dev": "nodemon index.js",
         "test:security": "jest tests/security --verbose --bail --detectOpenHandles",
-        "test:unit": "jest tests/unit --verbose --detectOpenHandles --passWithNoTests",
+        "test:unit": "jest tests/unit --verbose --detectOpenHandles",
         "test:integration": "jest tests/integration --verbose --detectOpenHandles",
         "test:performance": "node tests/performance/runner.js",
         "test:db:setup": "node tests/fixtures/db-setup.js",
