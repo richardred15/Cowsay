@@ -373,12 +373,13 @@ class CurrencyManager {
     
     async activateDailyBoost(userId) {
         try {
+            const DateUtils = require('./dateUtils');
             const expires = new Date();
             expires.setDate(expires.getDate() + 7); // 7 days from now
             
             await database.query(
                 'UPDATE user_currency SET daily_boost_expires = ? WHERE user_id = ?',
-                [expires.toISOString(), userId]
+                [DateUtils.toMySQLTimestamp(expires), userId]
             );
             
             return true;
