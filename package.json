@@ -7,8 +7,8 @@
         "start": "node index.js",
         "dev": "nodemon index.js",
         "test:security": "jest tests/security --verbose --bail --detectOpenHandles",
-        "test:unit": "timeout 90s jest tests/unit --verbose --detectOpenHandles --passWithNoTests || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)",
-        "test:integration": "timeout 90s jest tests/integration --verbose --detectOpenHandles || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)",
+        "test:unit": "jest tests/unit --verbose --detectOpenHandles --passWithNoTests",
+        "test:integration": "jest tests/integration --verbose --detectOpenHandles",
         "test:performance": "node tests/performance/runner.js",
         "test:db:setup": "node tests/fixtures/db-setup.js",
         "test:all": "npm run test:security && npm run test:unit && npm run test:integration && npm run test:performance"
