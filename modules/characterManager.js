@@ -1,6 +1,6 @@
 const cowsay = require("cowsay");
 const Logger = require('./logger');
-const shopManager = require('./shopManager');
+const inventoryManager = require('./inventoryManager');
 
 class CharacterManager {
     constructor() {
@@ -26,7 +26,11 @@ class CharacterManager {
     }
 
     getFreeCharacters() {
-        return this.characters.filter(char => !this.premiumCharacters.includes(char));
+        if (!this.freeCharactersCache) {
+            const premiumSet = new Set(this.premiumCharacters);
+            this.freeCharactersCache = this.characters.filter(char => !premiumSet.has(char));
+        }
+        return this.freeCharactersCache;
     }
 
     getPremiumCharacters() {
@@ -37,7 +41,7 @@ class CharacterManager {
         if (!this.premiumCharacters.includes(character)) {
             return true; // Free character
         }
-        return await shopManager.hasItem(userId, character);
+        return await inventoryManager.hasItem(userId, character);
     }
 
     async generateAscii(animal, message, userId = null) {

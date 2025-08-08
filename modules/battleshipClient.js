@@ -15,7 +15,19 @@ class BattleshipClient {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
 
         try {
-            this.ws = new WebSocket("ws://localhost:3050/api/bot");
+            const wsUrl = process.env.BATTLESHIP_WS_URL || "wss://localhost:3050/api/bot";
+            const authToken = process.env.BATTLESHIP_AUTH_TOKEN;
+            
+            if (!authToken) {
+                Logger.error('BATTLESHIP_AUTH_TOKEN not configured');
+                return;
+            }
+            
+            this.ws = new WebSocket(wsUrl, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            });
 
             this.ws.on("open", () => {
                 this.connected = true;
@@ -82,33 +94,71 @@ class BattleshipClient {
             return;
         }
 
-        // Handle different message types with appropriate callbacks
-        if (message.type === "game_created" || message.type === "error") {
-            // Find create game callback
-            for (const [key, callback] of this.gameCallbacks) {
-                if (key.startsWith('create_')) {
-                    callback(message);
-                    break;
-                }
-            }
-        } else if (message.type === "ascii_response") {
-            // Find ASCII callback for this game
-            for (const [key, callback] of this.gameCallbacks) {
-                if (key.startsWith(`ascii_${message.gameId}_`)) {
-                    callback(message);
-                    break;
-                }
-            }
-        } else if (message.type === "game_update" || message.type === "subscribed") {
-            // Find subscription callback
-            const callback = this.gameCallbacks.get(`sub_${message.gameId}`);
-            if (callback) {
+        const messageHandlers = {
+            'game_created': () => this.handleCreateGameMessage(message),
+            'error': () => this.handleCreateGameMessage(message),
+            'ascii_response': () => this.handleAsciiMessage(message),
+            'game_update': () => this.handleGameUpdateMessage(message),
+            'subscribed': () => this.handleGameUpdateMessage(message)
+        };
+
+        const handler = messageHandlers[message.type];
+        if (handler) {
+            handler();
+        }
+    }
+
+    handleCreateGameMessage(message) {
+        for (const [key, callback] of this.gameCallbacks) {
+            if (key.startsWith('create_')) {
                 callback(message);
+                break;
             }
         }
     }
 
-    createGame(callback) {
+    handleAsciiMessage(message) {
+        for (const [key, callback] of this.gameCallbacks) {
+            if (key.startsWith(`ascii_${message.gameId}_`)) {
+                callback(message);
+                break;
+            }
+        }
+    }
+
+    handleGameUpdateMessage(message) {
+        const callback = this.gameCallbacks.get(`sub_${message.gameId}`);
+        if (callback) {
+            callback(message);
+        }
+    }
+
+    createGame(callback, userId = null, userMessage = null) {
+        const SecurityUtils = require('./security');
+        
+        if (!userId) {
+            callback({ type: 'error', message: 'User ID required for game creation' });
+            return;
+        }
+        
+        // Validate authorization if user message is provided
+        if (userMessage) {
+            SecurityUtils.validateAuthorization(userMessage, 'user').then(authorized => {
+                if (!authorized) {
+                    callback({ type: 'error', message: 'Unauthorized game creation attempt' });
+                    return;
+                }
+                this.performGameCreation(callback, userId);
+            }).catch(() => {
+                callback({ type: 'error', message: 'Authorization check failed' });
+            });
+        } else {
+            this.performGameCreation(callback, userId);
+        }
+    }
+    
+    performGameCreation(callback, userId) {
+        const SecurityUtils = require('./security');
         const tempId = `create_${Date.now()}`;
         this.gameCallbacks.set(tempId, (message) => {
             if (message.type === "game_created") {
@@ -119,7 +169,7 @@ class BattleshipClient {
                 callback(message);
             }
         });
-        this.send({ type: "create_game" });
+        this.send({ type: "create_game", userId: SecurityUtils.sanitizeForLog(userId) });
     }
 
     getAscii(gameId, callback) {

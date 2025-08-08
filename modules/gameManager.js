@@ -11,7 +11,7 @@ class GameManager {
     }
 
     getAvailableGames() {
-        return ["tictactoe", "blackjack", "battleship", "balatro", "pong"];
+        return Object.keys(this.games);
     }
 
     createGamesEmbed() {
@@ -104,11 +104,30 @@ class GameManager {
         // Clean up any existing setup games for this user
         const existingSetupKey = `bj_setup_${message.author.id}`;
         this.activeGames.delete(existingSetupKey);
+        
+        // Clean up abandoned setups older than 5 minutes
+        this.cleanupAbandonedSetups();
 
-        // Create setup game data
+        // Create setup game data with timeout
         const setupKey = `bj_setup_${message.author.id}`;
-        const gameData = { type: "blackjack", phase: "setup", creator: message.author.id, mode };
+        const gameData = { 
+            type: "blackjack", 
+            phase: "setup", 
+            creator: message.author.id, 
+            mode,
+            createdAt: Date.now()
+        };
         this.activeGames.set(setupKey, gameData);
+        
+        // Set cleanup timeout for this setup
+        setTimeout(() => {
+            if (this.activeGames.has(setupKey)) {
+                const data = this.activeGames.get(setupKey);
+                if (data && data.phase === 'setup') {
+                    this.activeGames.delete(setupKey);
+                }
+            }
+        }, 300000); // 5 minutes
 
         // Create fake interaction for consistent flow
         const fakeInteraction = {
@@ -135,15 +154,36 @@ class GameManager {
                 channel: message.channel,
                 reply: async (options) => message.reply(options),
                 update: async (options) => {
-                    const msg = await message.channel.messages.fetch({ limit: 10 });
-                    const lastBotMsg = msg.find(m => m.author.bot && m.embeds.length > 0);
-                    if (lastBotMsg) await lastBotMsg.edit(options);
+                    try {
+                        const msg = await message.channel.messages.fetch({ limit: 10 });
+                        const lastBotMsg = msg.find(m => m.author.bot && m.embeds.length > 0);
+                        if (lastBotMsg) await lastBotMsg.edit(options);
+                    } catch (error) {
+                        const Logger = require('./logger');
+                        Logger.error('Failed to update message in fake interaction', error.message);
+                        // Fallback to reply if edit fails
+                        await message.reply(options);
+                    }
                 }
             };
             return await blackjack.joinLobby(fakeInteraction);
         }
         message.reply("No active game lobby to join!");
         return false;
+    }
+
+    cleanupAbandonedSetups() {
+        const now = Date.now();
+        const fiveMinutesAgo = now - 300000;
+        
+        for (const [key, data] of this.activeGames) {
+            if (data && data.phase === 'setup' && data.createdAt && data.createdAt < fiveMinutesAgo) {
+                this.activeGames.delete(key);
+                if (this.userGameMap) {
+                    this.userGameMap.delete(data.creator);
+                }
+            }
+        }
     }
 
     async handleButtonInteraction(interaction) {
@@ -194,7 +234,7 @@ class GameManager {
         let gameData = null;
         let gameKey = null;
 
-        // Create user-to-game mapping for faster lookups
+        // Use efficient user-to-game mapping
         if (!this.userGameMap) {
             this.userGameMap = new Map();
         }
@@ -205,19 +245,19 @@ class GameManager {
             gameData = this.activeGames.get(cachedGameKey);
             gameKey = cachedGameKey;
         } else {
-            // Find the game this user is part of and update cache
+            // Efficient game lookup with early exit
             for (const [key, data] of this.activeGames) {
-                if (data && data.type === 'blackjack') {
-                    // For blackjack setup phase or if user is in players array
+                if (!data) continue;
+                
+                if (data.type === 'blackjack') {
                     if ((data.phase === 'setup' && data.creator === userId) || 
-                        (data.players && Array.isArray(data.players) && data.players.some(p => p.id === userId))) {
+                        (data.players?.some?.(p => p.id === userId))) {
                         gameData = data;
                         gameKey = key;
                         this.userGameMap.set(userId, key);
                         break;
                     }
                 } else if (key.includes(userId)) {
-                    // For other games, use existing logic
                     gameData = data;
                     gameKey = key;
                     this.userGameMap.set(userId, key);

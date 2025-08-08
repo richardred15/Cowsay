@@ -13,7 +13,8 @@ class MessageUtils {
     static safeReply(message, content) {
         const truncated = this.truncateMessage(content);
         return message.reply(truncated).catch(error => {
-            console.error("Failed to send message:", error);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Failed to send message', { error: error.message });
             return message.reply("Sorry, I couldn't send that message. 🤖");
         });
     }

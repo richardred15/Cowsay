@@ -177,44 +177,50 @@ class Balatro {
     async handleInteraction(interaction, gameData, gameKey, gameManager) {
         if (!interaction.customId.startsWith('bal_')) return false;
 
-        let game = gameData || this.findGameByUser(interaction.user.id);
-        if (!game) {
-            // Try loading from database
-            const dbGames = await this.loadUserGames(interaction.user.id);
-            if (dbGames.length > 0) {
-                game = dbGames[0];
-                this.activeGames.set(game.id, game);
-            }
-        }
-        
+        const game = await this.getGameForUser(interaction.user.id, gameData);
         if (!game) {
             await interaction.reply({ content: '❌ No active Balatro game found!', flags: MessageFlags.Ephemeral });
             return true;
         }
 
-        // Only allow the game creator to interact
         if (game.userId !== interaction.user.id) {
             await interaction.reply({ content: '❌ This is not your game!', flags: MessageFlags.Ephemeral });
             return true;
         }
 
         try {
-            if (interaction.customId.startsWith('bal_card_')) {
-                await this.handleCardSelection(interaction, game);
-            } else if (interaction.customId === 'bal_play') {
-                await this.handlePlayHand(interaction, game);
-            } else if (interaction.customId === 'bal_discard') {
-                await this.handleDiscard(interaction, game);
-            } else if (interaction.customId === 'bal_shop') {
-                await this.handleShop(interaction, game);
-            } else if (interaction.customId === 'bal_quit') {
-                await this.handleQuit(interaction, game, gameManager);
-            }
+            await this.routeInteraction(interaction, game, gameManager);
             return true;
         } catch (error) {
             Logger.error('Balatro interaction error', error.message);
             await interaction.reply({ content: '❌ Game error occurred!', flags: MessageFlags.Ephemeral });
             return true;
+        }
+    }
+
+    async getGameForUser(userId, gameData) {
+        let game = gameData || this.findGameByUser(userId);
+        if (!game) {
+            const dbGames = await this.loadUserGames(userId);
+            if (dbGames.length > 0) {
+                game = dbGames[0];
+                this.activeGames.set(game.id, game);
+            }
+        }
+        return game;
+    }
+
+    async routeInteraction(interaction, game, gameManager) {
+        if (interaction.customId.startsWith('bal_card_')) {
+            await this.handleCardSelection(interaction, game);
+        } else if (interaction.customId === 'bal_play') {
+            await this.handlePlayHand(interaction, game);
+        } else if (interaction.customId === 'bal_discard') {
+            await this.handleDiscard(interaction, game);
+        } else if (interaction.customId === 'bal_shop') {
+            await this.handleShop(interaction, game);
+        } else if (interaction.customId === 'bal_quit') {
+            await this.handleQuit(interaction, game, gameManager);
         }
     }
 
@@ -426,19 +432,23 @@ class Balatro {
     }
 
     async saveGame(gameData) {
-        const sql = `INSERT INTO balatro_games (id, user_id, ante, chips, hands_remaining, discards_remaining, current_hand, deck, jokers, blind_data) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
-                     ON DUPLICATE KEY UPDATE 
-                     ante=VALUES(ante), chips=VALUES(chips), hands_remaining=VALUES(hands_remaining), 
-                     discards_remaining=VALUES(discards_remaining), current_hand=VALUES(current_hand), 
-                     deck=VALUES(deck), jokers=VALUES(jokers), blind_data=VALUES(blind_data)`;
-        
-        await database.query(sql, [
-            gameData.id, gameData.userId, gameData.ante, gameData.chips,
-            gameData.handsRemaining, gameData.discardsRemaining,
-            JSON.stringify(gameData.currentHand), JSON.stringify(gameData.deck),
-            JSON.stringify(gameData.jokers), JSON.stringify(gameData.blindData)
-        ]);
+        try {
+            const sql = 'INSERT INTO balatro_games (id, user_id, ante, chips, hands_remaining, discards_remaining, current_hand, deck, jokers, blind_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE ante=?, chips=?, hands_remaining=?, discards_remaining=?, current_hand=?, deck=?, jokers=?, blind_data=?';
+            
+            await database.query(sql, [
+                gameData.id, gameData.userId, gameData.ante, gameData.chips,
+                gameData.handsRemaining, gameData.discardsRemaining,
+                JSON.stringify(gameData.currentHand), JSON.stringify(gameData.deck),
+                JSON.stringify(gameData.jokers), JSON.stringify(gameData.blindData),
+                gameData.ante, gameData.chips, gameData.handsRemaining, gameData.discardsRemaining,
+                JSON.stringify(gameData.currentHand), JSON.stringify(gameData.deck),
+                JSON.stringify(gameData.jokers), JSON.stringify(gameData.blindData)
+            ]);
+        } catch (error) {
+            const secureLogger = require('../secureLogger');
+            secureLogger.error('Failed to save Balatro game', { error: error.message, userId: gameData.userId });
+            throw error;
+        }
     }
 
     async loadGame(gameId) {

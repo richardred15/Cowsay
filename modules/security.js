@@ -1,4 +1,4 @@
-// Security utilities for input sanitization and validation
+// Security utilities for input sanitization, validation, and authorization
 class SecurityUtils {
     // Sanitize user input for logging to prevent log injection
     static sanitizeForLog(input) {
@@ -34,9 +34,22 @@ class SecurityUtils {
         return { valid: true };
     }
 
-    // Rate limiting helper
+    // Rate limiting helper with cleanup
     static createRateLimiter(maxRequests = 5, windowMs = 60000) {
         const requests = new Map();
+        
+        // Cleanup old entries every 5 minutes
+        setInterval(() => {
+            const now = Date.now();
+            for (const [userId, userRequests] of requests.entries()) {
+                const validRequests = userRequests.filter(time => now - time < windowMs);
+                if (validRequests.length === 0) {
+                    requests.delete(userId);
+                } else {
+                    requests.set(userId, validRequests);
+                }
+            }
+        }, 300000);
         
         return (userId) => {
             const now = Date.now();
@@ -53,6 +66,28 @@ class SecurityUtils {
             requests.set(userId, validRequests);
             return true;
         };
+    }
+
+    // Validate user authorization for sensitive operations
+    static async validateAuthorization(message, requiredLevel = 'user') {
+        try {
+            const discordPermissions = require('./discordPermissions');
+            const userLevel = await discordPermissions.getUserPermissionLevel(message);
+            
+            const levels = { user: 0, helper: 1, moderator: 2, admin: 3, owner: 4 };
+            const userLevelNum = levels[userLevel] || 0;
+            const requiredLevelNum = levels[requiredLevel] || 0;
+            
+            return userLevelNum >= requiredLevelNum;
+        } catch (error) {
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Authorization validation error', { 
+                error: error.message.substring(0, 100),
+                userId: message?.author?.id,
+                guildId: message?.guild?.id
+            });
+            return false;
+        }
     }
 }
 

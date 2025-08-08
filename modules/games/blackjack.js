@@ -182,7 +182,8 @@ class Blackjack {
 
             return true;
         } catch (error) {
-            console.error("Error in startSinglePlayer:", error);
+            const secureLogger = require('../secureLogger');
+            secureLogger.error('Error in startSinglePlayer', { error: error.message, userId: interaction.user.id });
             await interaction.reply({
                 content: "An error occurred starting the game.",
                 flags: MessageFlags.Ephemeral,
@@ -282,10 +283,20 @@ class Blackjack {
         }
 
         // Check if creator can afford the bet
-        const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
-        if (!canAfford) {
+        try {
+            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            if (!canAfford) {
+                await interaction.reply({
+                    content: "You don't have enough coins for this bet!",
+                    ephemeral: true,
+                });
+                return true;
+            }
+        } catch (error) {
+            const secureLogger = require('../secureLogger');
+            secureLogger.error('Error checking balance for lobby bet', { error: error.message, userId: interaction.user.id });
             await interaction.reply({
-                content: "You don't have enough coins for this bet!",
+                content: "Error processing your bet. Please try again.",
                 ephemeral: true,
             });
             return true;
@@ -504,10 +515,20 @@ class Blackjack {
             return true;
         }
 
-        const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
-        if (!canAfford) {
+        try {
+            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            if (!canAfford) {
+                await interaction.reply({
+                    content: "You don't have enough coins for this bet!",
+                    ephemeral: true,
+                });
+                return true;
+            }
+        } catch (error) {
+            const secureLogger = require('../secureLogger');
+            secureLogger.error('Error checking balance for join bet', { error: error.message, userId: interaction.user.id });
             await interaction.reply({
-                content: "You don't have enough coins for this bet!",
+                content: "Error processing your bet. Please try again.",
                 ephemeral: true,
             });
             return true;
@@ -738,39 +759,24 @@ class Blackjack {
     }
 
     createDeck() {
-        const suits = ["♠", "♥", "♦", "♣"];
-        const ranks = [
-            "A",
-            "2",
-            "3",
-            "4",
-            "5",
-            "6",
-            "7",
-            "8",
-            "9",
-            "10",
-            "J",
-            "Q",
-            "K",
-        ];
-        const deck = [];
+        if (!this.baseDeck) {
+            const suits = ["♠", "♥", "♦", "♣"];
+            const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+            this.baseDeck = [];
 
-        for (const suit of suits) {
-            for (const rank of ranks) {
-                deck.push({ rank, suit, value: this.getCardValue(rank) });
+            for (const suit of suits) {
+                for (const rank of ranks) {
+                    this.baseDeck.push({ rank, suit, value: this.getCardValue(rank) });
+                }
             }
         }
 
-        return this.shuffleDeck(deck);
+        return this.shuffleDeck([...this.baseDeck]);
     }
 
     shuffleDeck(deck) {
-        for (let i = deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [deck[i], deck[j]] = [deck[j], deck[i]];
-        }
-        return deck;
+        const CryptoRandom = require('../cryptoRandom');
+        return CryptoRandom.shuffle(deck);
     }
 
     getCardValue(rank) {
@@ -833,7 +839,7 @@ class Blackjack {
             lobby.waitTime - Math.floor((Date.now() - lobby.startTime) / 1000)
         );
         const playerList = lobby.players
-            .map((p) => `${this.sanitizeText(p.name)}: ${p.bet} coins 🪙`)
+            .map((p) => `${this.sanitizeText(p.name)}: ${parseInt(p.bet)} coins 🪙`)
             .join("\n");
 
         return new EmbedBuilder()
@@ -872,8 +878,8 @@ class Blackjack {
             .map((p) => {
                 if (showAllHands) {
                     // Show full hand
-                    return `**${p.name}**: ${this.formatHand(p.hand)} (${
-                        p.score
+                    return `**${this.sanitizeText(p.name)}**: ${this.formatHand(p.hand)} (${
+                        parseInt(p.score)
                     })${p.blackjack ? " 🎉" : ""}${p.bust ? " 💥" : ""}${
                         p.stand ? " ✋" : ""
                     }`;
@@ -887,7 +893,7 @@ class Blackjack {
                         : p.stand
                         ? " ✋"
                         : "";
-                    return `**${p.name}**: [${cardCount} cards]${status}`;
+                    return `**${this.sanitizeText(p.name)}**: [${parseInt(cardCount)} cards]${status}`;
                 }
             })
             .join("\n");
@@ -915,7 +921,7 @@ class Blackjack {
                     name: "Current Turn",
                     value: gameData.gameOver
                         ? "Game Over"
-                        : currentPlayer?.name || "Dealer",
+                        : this.sanitizeText(currentPlayer?.name) || "Dealer",
                     inline: true,
                 }
             )
@@ -1527,7 +1533,11 @@ class Blackjack {
 
     sanitizeText(text) {
         if (!text) return "Unknown";
-        return text.replace(/[<>@#&!]/g, "").substring(0, 50);
+        // Prevent code injection by sanitizing all user input
+        return String(text)
+            .replace(/[<>@#&!\r\n\t]/g, "")
+            .replace(/[^\x20-\x7E]/g, "")
+            .substring(0, 50);
     }
 
     recordGameOutcome(gameData, winners, losers, pushes) {

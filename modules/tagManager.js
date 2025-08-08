@@ -68,8 +68,17 @@ class TagManager {
             reason: reason
         });
 
-        // Save to disk
-        this.saveData();
+        // Debounce saves to reduce disk I/O
+        this.debouncedSave();
+    }
+
+    debouncedSave() {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
+        this.saveTimeout = setTimeout(() => {
+            this.saveData();
+        }, 1000); // Save after 1 second of inactivity
     }
 
     getAvailableTags(memberCache, guild) {

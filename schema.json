@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -116,12 +116,38 @@
       },
       "indexes": ["category"]
     },
-    "user_purchases": {
+    "user_inventory": {
       "columns": {
         "user_id": "VARCHAR(50) NOT NULL",
         "item_id": "VARCHAR(50) NOT NULL",
-        "purchased_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "quantity": "INT DEFAULT 1",
+        "acquired_date": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "acquired_method": "ENUM('purchase', 'gift', 'reward', 'admin') DEFAULT 'purchase'",
+        "gifted_by": "VARCHAR(50) NULL",
         "PRIMARY KEY (user_id, item_id)": ""
+      },
+      "indexes": ["user_id", "item_id"]
+    },
+    "gift_transactions": {
+      "columns": {
+        "id": "INT AUTO_INCREMENT PRIMARY KEY",
+        "sender_id": "VARCHAR(50) NOT NULL",
+        "recipient_id": "VARCHAR(50) NOT NULL",
+        "item_id": "VARCHAR(50) NOT NULL",
+        "message": "TEXT",
+        "cost": "INT NOT NULL",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+      },
+      "indexes": ["sender_id", "recipient_id", "created_at"]
+    },
+    "gift_requests": {
+      "columns": {
+        "id": "INT AUTO_INCREMENT PRIMARY KEY",
+        "user_id": "VARCHAR(50) NOT NULL",
+        "item_id": "VARCHAR(50) NOT NULL",
+        "message": "TEXT",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "UNIQUE KEY unique_user_item (user_id, item_id)": ""
       },
       "indexes": ["user_id"]
     }

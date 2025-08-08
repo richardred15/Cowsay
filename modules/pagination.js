@@ -1,6 +1,10 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 class Pagination {
+    static getCollectorTimeout() {
+        return 60000; // 1 minute - configurable
+    }
+
     static async create(message, title, items, itemsPerPage = 20) {
         const pages = [];
         for (let i = 0; i < items.length; i += itemsPerPage) {
@@ -14,13 +18,13 @@ class Pagination {
         let currentPage = 0;
 
         const generateEmbed = (page) => {
-            const commands = pages[page].join('\n') || 'No items';
+            const pageItems = pages[page].join('\n') || 'No items';
             const embed = new EmbedBuilder()
                 .setTitle(`🐄 ${title}`)
-                .setDescription(`\`\`\`\n${commands}\n\`\`\``)
+                .setDescription(pageItems)
                 .setColor(0x00AE86)
                 .setFooter({ 
-                    text: `Page ${page + 1} of ${pages.length} • ${items.length} total commands`,
+                    text: `Page ${page + 1} of ${pages.length} • ${items.length} total items`,
                     iconURL: message.author.displayAvatarURL()
                 })
                 .setTimestamp();
@@ -53,12 +57,14 @@ class Pagination {
         });
 
         const collector = response.createMessageComponentCollector({
-            time: 60000
+            time: this.getCollectorTimeout()
         });
 
         collector.on('collect', async (interaction) => {
-            // Basic authorization check - only message author can use buttons
-            if (interaction.user.id !== message.author.id) {
+            // Enhanced authorization check
+            const SecurityUtils = require('./security');
+            const authorized = await SecurityUtils.validateAuthorization(interaction, 'user');
+            if (!authorized || interaction.user.id !== message.author.id) {
                 await interaction.reply({ content: 'Only the command user can navigate pages.', flags: require('discord.js').MessageFlags.Ephemeral });
                 return;
             }
@@ -135,7 +141,7 @@ class Pagination {
         });
         
         const collector = response.createMessageComponentCollector({
-            time: 60000
+            time: this.getCollectorTimeout()
         });
         
         collector.on('collect', async (interaction) => {

@@ -38,7 +38,7 @@ class Pong {
             gameInterval: null,
         };
 
-        console.log(gameData);
+        Logger.debug('Pong game started', { gameKey, playerId: message.author.id });
 
         this.activeGames.set(gameKey, gameData);
 
@@ -301,17 +301,23 @@ class Pong {
         let title = "🏓 Pong";
         let description = "";
 
+        // Sanitize display names to prevent XSS
+        const SecurityUtils = require('../security');
+        const sanitizeName = (name) => name ? SecurityUtils.sanitizeForDisplay(name).substring(0, 32) : 'Unknown';
+        const player1Name = sanitizeName(game.player1.name);
+        const player2Name = game.player2 ? sanitizeName(game.player2.name) : null;
+        
         if (game.phase === "waiting") {
-            description = `**${game.player1.name}** is waiting for an opponent!\nClick "Join Game" to play!`;
+            description = `**${player1Name}** is waiting for an opponent!\nClick "Join Game" to play!`;
         } else if (game.phase === "countdown") {
             description = statusMessage || "Get ready!";
         } else if (game.phase === "playing") {
-            description = `**${game.player1.name}** vs **${game.player2.name}**`;
+            description = `**${player1Name}** vs **${player2Name}**`;
         } else if (game.phase === "ended") {
             const winner =
                 game.scores.player1 >= 5
-                    ? game.player1.name
-                    : game.player2.name;
+                    ? player1Name
+                    : player2Name;
             let coinInfo = "";
             if (game.winnerReward && winner !== "AI") {
                 coinInfo = `\n🪙 +${game.winnerReward.awarded} coins`;
@@ -334,7 +340,7 @@ class Pong {
         if (game.player2) {
             embed.addFields({
                 name: "Score",
-                value: `${game.player1.name}: ${game.scores.player1} | ${game.player2.name}: ${game.scores.player2}`,
+                value: `${player1Name}: ${game.scores.player1} | ${player2Name}: ${game.scores.player2}`,
                 inline: false,
             });
         }
@@ -460,7 +466,7 @@ class Pong {
         const winnerScore = winnerId === game.player1.id ? game.scores.player1 : game.scores.player2;
         const loserScore = winnerId === game.player1.id ? game.scores.player2 : game.scores.player1;
         
-        console.log(`[PONG] Awarding coins - Winner: ${winnerId}, Loser: ${loserId}`);
+        Logger.info('Pong game ended, awarding coins');
         
         // Check for perfect game (shutout 5-0)
         const isPerfectGame = winnerScore === 5 && loserScore === 0;
@@ -468,26 +474,30 @@ class Pong {
         
         // Award coins to winner
         if (winnerId === game.player1.id) {
-            console.log(`[PONG] Player 1 won, awarding ${baseReward} coins to ${winnerId}`);
+            const secureLogger = require('../secureLogger');
+            secureLogger.info('Pong player 1 won', { baseReward, winnerId });
             const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
             game.winnerReward = winReward;
-            console.log(`[PONG] Win reward result:`, winReward);
+            secureLogger.info('Pong win reward processed', { awarded: winReward.awarded });
         } else if (!game.player2.isAI) {
-            console.log(`[PONG] Player 2 won, awarding ${baseReward} coins to ${winnerId}`);
+            const secureLogger = require('../secureLogger');
+            secureLogger.info('Pong player 2 won', { baseReward, winnerId });
             const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
             game.winnerReward = winReward;
-            console.log(`[PONG] Win reward result:`, winReward);
+            secureLogger.info('Pong win reward processed', { awarded: winReward.awarded });
         }
         
         // Award participation coins to loser and handle streak
         if (loserId === game.player1.id) {
-            console.log(`[PONG] Player 1 lost, awarding 10 participation coins to ${loserId}`);
+            const secureLogger = require('../secureLogger');
+            secureLogger.info('Pong player 1 lost, awarding participation coins', { loserId });
             const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
             const lossResult = await currencyManager.recordLoss(loserId);
             game.loserReward = participationReward;
             game.shieldUsed = lossResult.shieldUsed;
         } else if (!game.player2.isAI && loserId === game.player2.id) {
-            console.log(`[PONG] Player 2 lost, awarding 10 participation coins to ${loserId}`);
+            const secureLogger = require('../secureLogger');
+            secureLogger.info('Pong player 2 lost, awarding participation coins', { loserId });
             const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
             const lossResult = await currencyManager.recordLoss(loserId);
             game.loserReward = participationReward;

@@ -262,7 +262,8 @@ class ContextManager {
     // Leaderboard context per server (not per channel)
     getLeaderboardContext(serverId, guild) {
         const serverHistory = this.leaderboardHistory.get(serverId);
-        console.log(`[LEADERBOARD] Getting context for server ${serverId}, history length: ${serverHistory?.length || 0}`);
+        const secureLogger = require('./secureLogger');
+        secureLogger.debug('Getting leaderboard context', { serverId, historyLength: serverHistory?.length || 0 });
         if (!serverHistory || serverHistory.length === 0) {
             return "Leaderboard Context: No recent leaderboard data available.";
         }

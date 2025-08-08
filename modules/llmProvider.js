@@ -10,11 +10,14 @@ class LLMProvider {
     }
 
     createProvider(model = null) {
-        const provider = new LLMProvider();
-        if (model) {
+        // Return a copy of the current provider with different model if needed
+        if (model && model !== this.model) {
+            const provider = Object.create(Object.getPrototypeOf(this));
+            Object.assign(provider, this);
             provider.model = model;
+            return provider;
         }
-        return provider;
+        return this;
     }
 
     initializeProvider() {

@@ -1,6 +1,7 @@
 const database = require('./database');
 const fs = require('fs');
 const path = require('path');
+const SecurityUtils = require('./security');
 
 class CurrencyManager {
     constructor() {
@@ -42,7 +43,8 @@ class CurrencyManager {
                 [userId, balance, lastDaily]
             );
         } catch (error) {
-            console.log('Error creating user currency:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error creating user currency', { error: error.message, userId });
         }
     }
 
@@ -54,7 +56,7 @@ class CurrencyManager {
                 [userId]
             );
             
-            console.log(`[CURRENCY] Query result for ${userId}:`, rows);
+            console.log(`[CURRENCY] Query result for ${SecurityUtils.sanitizeForLog(userId)}:`, rows);
             
             if (!rows || rows.length === 0) {
                 console.log(`[CURRENCY] No user found, creating with 1000 coins`);
@@ -66,7 +68,8 @@ class CurrencyManager {
             console.log(`[CURRENCY] Returning balance: ${balance}`);
             return balance;
         } catch (error) {
-            console.log('Error getting balance:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting balance', { error: error.message, userId });
             return 1000;
         }
     }
@@ -81,8 +84,9 @@ class CurrencyManager {
             
             return await this.getBalance(userId);
         } catch (error) {
-            console.log('Error adding balance:', error.message);
-            return 1000;
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error adding balance', { error: error.message, userId });
+            throw new Error('Failed to add balance: ' + error.message);
         }
     }
 
@@ -98,7 +102,8 @@ class CurrencyManager {
             
             return true;
         } catch (error) {
-            console.log('Error subtracting balance:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error subtracting balance', { error: error.message, userId });
             return false;
         }
     }
@@ -141,7 +146,8 @@ class CurrencyManager {
             
             return { success: true, amount: bonus, newBalance: player.balance + bonus, boosted: hasBoost };
         } catch (error) {
-            console.log('Error getting daily bonus:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting daily bonus', { error: error.message, userId });
             return { success: false, message: "Error processing daily bonus." };
         }
     }
@@ -149,12 +155,14 @@ class CurrencyManager {
     async getLeaderboard(limit = 10) {
         try {
             const rows = await database.query(
-                `SELECT user_id as userId, balance FROM user_currency ORDER BY balance DESC LIMIT ${limit}`
+                'SELECT user_id as userId, balance FROM user_currency WHERE balance > 0 ORDER BY balance DESC LIMIT ?',
+                [limit]
             );
             
             return rows || [];
         } catch (error) {
-            console.log('Error getting leaderboard:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting leaderboard', { error: error.message });
             return [];
         }
     }
@@ -169,14 +177,16 @@ class CurrencyManager {
             );
             
             if (!rows || rows.length === 0) {
-                console.log(`No user found for ${userId}, creating new user`);
+                const secureLogger = require('./secureLogger');
+                secureLogger.info('Creating new user', { userId });
                 await this.createUser(userId);
                 const newRows = await database.query(
                     'SELECT balance, win_streak, last_win FROM user_currency WHERE user_id = ?',
                     [userId]
                 );
                 if (!newRows || newRows.length === 0) {
-                    console.log(`Failed to create user ${userId}`);
+                    const secureLogger = require('./secureLogger');
+                    secureLogger.error('Failed to create user', { userId });
                     return { awarded: 0, newBalance: 1000, streak: 0, firstWinBonus: false };
                 }
             }
@@ -187,7 +197,8 @@ class CurrencyManager {
             let newStreak = player.win_streak || 0;
             let firstWinBonus = false;
             
-            console.log(`Awarding ${amount} coins to ${userId} for ${reason}`);
+            const secureLogger = require('./secureLogger');
+            secureLogger.info('Awarding coins to user', { amount, reason: SecurityUtils.sanitizeForLog(reason), userId });
             
             // Apply streak bonus for wins
             if (reason.includes('win')) {
@@ -208,7 +219,8 @@ class CurrencyManager {
                 const streakBonus = Math.min(0.5, (newStreak - 1) * 0.1);
                 finalAmount = Math.floor(finalAmount * (1 + streakBonus));
                 
-                console.log(`Final amount after bonuses: ${finalAmount} (streak: ${newStreak}, firstWin: ${firstWinBonus})`);
+                const secureLogger = require('./secureLogger');
+                secureLogger.info('Bonus calculation', { finalAmount, streak: newStreak, firstWin: firstWinBonus, userId });
                 
                 await database.query(
                     'UPDATE user_currency SET balance = balance + ?, win_streak = ?, last_win = ?, total_earned = total_earned + ? WHERE user_id = ?',
@@ -233,8 +245,10 @@ class CurrencyManager {
                 firstWinBonus
             };
         } catch (error) {
-            console.log('Error awarding coins:', error.message, error.stack);
-            return { awarded: 0, newBalance: 1000, streak: 0, firstWinBonus: false };
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error awarding coins', { error: error.message.substring(0, 100), userId });
+            // Return safe defaults but don't fail silently
+            throw new Error('Failed to award coins: ' + error.message);
         }
     }
     
@@ -245,7 +259,9 @@ class CurrencyManager {
                 [userId]
             );
         } catch (error) {
-            console.log('Error resetting streak:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error resetting streak', { error: error.message, userId });
+            throw error;
         }
     }
     
@@ -256,19 +272,21 @@ class CurrencyManager {
                 [userId, amount, reason, balanceBefore, balanceAfter]
             );
         } catch (error) {
-            console.log('Error logging transaction:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error logging transaction', { error: error.message, userId });
         }
     }
     
     async getTransactionHistory(userId, limit = 10) {
         try {
             const rows = await database.query(
-                `SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ${limit}`,
-                [userId]
+                'SELECT amount, reason, balance_before, balance_after, created_at FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+                [userId, limit]
             );
             return rows || [];
         } catch (error) {
-            console.log('Error getting transaction history:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting transaction history', { error: error.message, userId });
             return [];
         }
     }
@@ -290,7 +308,8 @@ class CurrencyManager {
             
             return true;
         } catch (error) {
-            console.log('Error spending coins:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error spending coins', { error: error.message, userId });
             return false;
         }
     }
@@ -310,7 +329,8 @@ class CurrencyManager {
             
             return { success: true, newBalance: balanceAfter };
         } catch (error) {
-            console.log('Error adding coins:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error adding coins', { error: error.message.substring(0, 100), userId });
             return { success: false, error: error.message };
         }
     }
@@ -330,7 +350,8 @@ class CurrencyManager {
             
             return { success: true, newBalance: balanceAfter, actualAmount: finalAmount };
         } catch (error) {
-            console.log('Error removing coins:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error removing coins', { error: error.message.substring(0, 100), userId });
             return { success: false, error: error.message };
         }
     }
@@ -338,11 +359,13 @@ class CurrencyManager {
     async getAllTransactions(limit = 50) {
         try {
             const rows = await database.query(
-                `SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ${limit}`
+                'SELECT user_id, amount, reason, balance_before, balance_after, created_at FROM coin_transactions ORDER BY created_at DESC LIMIT ?',
+                [limit]
             );
             return rows || [];
         } catch (error) {
-            console.log('Error getting all transactions:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting all transactions', { error: error.message });
             return [];
         }
     }
@@ -359,7 +382,8 @@ class CurrencyManager {
             
             return true;
         } catch (error) {
-            console.log('Error activating daily boost:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error activating daily boost', { error: error.message, userId });
             return false;
         }
     }
@@ -378,8 +402,9 @@ class CurrencyManager {
             
             return new Date(expires) > new Date();
         } catch (error) {
-            console.log('Error checking daily boost:', error.message);
-            return false;
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error checking daily boost', { error: error.message, userId });
+            throw new Error('Failed to check daily boost: ' + error.message);
         }
     }
     
@@ -392,8 +417,9 @@ class CurrencyManager {
             
             return true;
         } catch (error) {
-            console.log('Error adding streak shield:', error.message);
-            return false;
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error adding streak shield', { error: error.message, userId });
+            throw new Error('Failed to add streak shield: ' + error.message);
         }
     }
     
@@ -408,7 +434,8 @@ class CurrencyManager {
             
             return (rows[0].streak_shield_count || 0) > 0;
         } catch (error) {
-            console.log('Error checking streak shield:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error checking streak shield', { error: error.message, userId });
             return false;
         }
     }
@@ -430,7 +457,8 @@ class CurrencyManager {
                 return { shieldUsed: false };
             }
         } catch (error) {
-            console.log('Error recording loss:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error recording loss', { error: error.message, userId });
             return { shieldUsed: false };
         }
     }
@@ -455,7 +483,8 @@ class CurrencyManager {
                 streakShields: user.streak_shield_count || 0
             };
         } catch (error) {
-            console.log('Error getting boost status:', error.message);
+            const secureLogger = require('./secureLogger');
+            secureLogger.error('Error getting boost status', { error: error.message, userId });
             return { dailyBoost: false, streakShields: 0 };
         }
     }

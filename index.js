@@ -1,9 +1,14 @@
+const fs = require("fs");
 require("dotenv").config();
 const {
     Client,
     GatewayIntentBits,
     SlashCommandBuilder,
     MessageFlags,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
 } = require("discord.js");
 const cowsay = require("cowsay");
 const llmProvider = require("./modules/llmProvider");
@@ -13,8 +18,12 @@ const Logger = require("./modules/logger");
 const rateLimiter = require("./modules/rateLimiter");
 const autoReply = require("./modules/autoReply");
 const IntentDetector = require("./modules/intentDetector");
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const cardRenderer = require("./modules/cardRenderer");
+const secureLogger = require("./modules/secureLogger");
+
+// Import new command modules
+const BalanceCommand = require("./modules/commands/balanceCommand");
+const AdminCommand = require("./modules/commands/adminCommand");
 
 // Import all modules at the top to avoid lazy loading
 const characterManager = require("./modules/characterManager");
@@ -35,7 +44,14 @@ const rivalManager = require("./modules/rivalManager");
 const discordPermissions = require("./modules/discordPermissions");
 const gameStats = require("./modules/gameStats");
 const shopManager = require("./modules/shopManager");
+const inventoryManager = require("./modules/inventoryManager");
+const giftManager = require("./modules/giftManager");
 const Pagination = require("./modules/pagination");
+const database = require("./modules/database");
+const balatro = require("./modules/games/balatro");
+const battleship = require("./modules/games/battleship");
+const pong = require("./modules/games/pong");
+const unicodeNormalizer = require("./modules/unicodeNormalizer");
 
 const client = new Client({
     intents: [
@@ -61,15 +77,12 @@ client.once("ready", async () => {
     });
 
     // Initialize database
-    const database = require("./modules/database");
     await database.init();
 
     // Load active games from database
-    const balatro = require("./modules/games/balatro");
     await balatro.loadAllActiveGames();
 
     // Set client reference for battleship game
-    const battleship = require("./modules/games/battleship");
     battleship.setClient(client);
 
     // Register slash commands
@@ -82,8 +95,6 @@ client.once("ready", async () => {
             .setDescription("Start a poker-based scoring game"),
     ];
 
-    console.log(cardRenderer.renderBack());
-
     try {
         const data = await client.application.commands.set(commands);
         Logger.info(
@@ -94,6 +105,23 @@ client.once("ready", async () => {
     } catch (error) {
         Logger.error("Failed to register slash commands", error.message);
     }
+
+    //Banner - do not remove
+    const padding = new Array(Math.floor((process.stdout.columns - 100) / 2))
+        .fill(" ")
+        .join("");
+    fs.readFile("./banner.ini", "utf8", (err, data) => {
+        if (err) {
+            Logger.error("Failed to read banner file", err.message);
+        } else {
+            console.log("\n\n\n");
+            const lines = data.split("\n");
+            lines.forEach((line) => {
+                console.log(`${padding}${line}`);
+            });
+            console.log("\n\n\n");
+        }
+    });
 
     // Clean up old data every hour
     setInterval(() => {
@@ -115,6 +143,10 @@ const mentionHandler = new MentionHandler(llmProvider, commandHandler);
 const askHandler = new AskHandler(llmProvider, commandHandler);
 const leaderboardHandler = new LeaderboardHandler(llmProvider, toolManager);
 const intentDetector = new IntentDetector();
+
+// Initialize command instances
+const balanceCommand = new BalanceCommand();
+const adminCommand = new AdminCommand();
 
 // Handle interactions (slash commands and buttons)
 client.on("interactionCreate", async (interaction) => {
@@ -157,35 +189,92 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
         try {
             // Handle shop purchases
-            if (interaction.customId.startsWith('shop_buy_')) {
-                const itemId = interaction.customId.replace('shop_buy_', '');
-                const result = await shopManager.purchaseItem(interaction.user.id, itemId);
-                
+            if (interaction.customId.startsWith("shop_buy_")) {
+                const itemId = interaction.customId.replace("shop_buy_", "");
+                const result = await shopManager.purchaseItem(
+                    interaction.user.id,
+                    itemId
+                );
+
                 if (result.success) {
                     const embed = new EmbedBuilder()
                         .setTitle("🎉 Purchase Successful!")
                         .setColor(0x00ff00)
-                        .setDescription(`${result.message}\n\n${result.item.category === 'character' ? `You can now use \`!${itemId}say <text>\` to use your new character!` : 'Your boost is now active!'}`);
-                    
-                    await interaction.reply({ embeds: [embed], ephemeral: true });
+                        .setDescription(
+                            `${result.message}\n\n${
+                                result.item.category === "character"
+                                    ? `You can now use \`!${itemId}say <text>\` to use your new character!`
+                                    : "Your boost is now active!"
+                            }`
+                        );
+
+                    await interaction.reply({
+                        embeds: [embed],
+                        ephemeral: true,
+                    });
                 } else {
-                    await interaction.reply({ content: `❌ ${result.message}`, ephemeral: true });
+                    await interaction.reply({
+                        content: `❌ ${result.message}`,
+                        ephemeral: true,
+                    });
                 }
                 return;
             }
-            
+
+            // Handle gift buttons
+            if (interaction.customId.startsWith("shop_gift_")) {
+                const itemId = interaction.customId.replace("shop_gift_", "");
+
+                // Get item details
+                const items = await shopManager.getShopItems();
+                const item = items.find((i) => i.item_id === itemId);
+
+                if (!item) {
+                    await interaction.reply({
+                        content: "❌ Item not found!",
+                        ephemeral: true,
+                    });
+                    return;
+                }
+
+                const giftCost = giftManager.calculateGiftCost(item.price);
+                const userBalance = await currencyManager.getBalance(
+                    interaction.user.id
+                );
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`🎁 Gift ${item.name}`)
+                    .setColor(0x9b59b6)
+                    .setDescription(
+                        `**Cost:** ${giftCost} coins (${item.price} + 10% gift fee)\n**Your Balance:** ${userBalance} coins\n\nUse \`!cowsay gift @user ${item.item_id}\` to send this as a gift!`
+                    )
+                    .addFields({
+                        name: "Item",
+                        value: item.description,
+                        inline: false,
+                    });
+
+                await interaction.reply({ embeds: [embed], ephemeral: true });
+                return;
+            }
+
             // Try game manager first, if it doesn't handle it, let it fall through
-            const gameHandled = await gameManager.handleButtonInteraction(interaction);
+            const gameHandled = await gameManager.handleButtonInteraction(
+                interaction
+            );
             if (gameHandled) {
                 return;
             }
-            
+
             // If not handled by game manager, it might be pagination or other system buttons
             // These will be handled by their respective collectors, so we don't need to do anything
         } catch (error) {
             Logger.error("Button interaction error", error.message);
             if (!interaction.replied) {
-                await interaction.reply({ content: "❌ An error occurred. Please try again.", ephemeral: true });
+                await interaction.reply({
+                    content: "❌ An error occurred. Please try again.",
+                    ephemeral: true,
+                });
             }
         }
     }
@@ -221,37 +310,41 @@ client.on("messageCreate", async (message) => {
             return;
         }
         // Check if this is a rival bot
-        const isRival = await rivalManager.isRival(message.guild?.id, message.author.id);
+        const isRival = await rivalManager.isRival(
+            message.guild?.id,
+            message.author.id
+        );
         if (!isRival) {
             return;
         }
-        
+
         // Parse rival bot embeds into plain text for context
         if (message.embeds.length > 0) {
-            const embedText = message.embeds.map(embed => {
-                let text = '';
-                if (embed.title) text += embed.title + '\n';
-                if (embed.description) text += embed.description + '\n';
-                if (embed.fields) {
-                    embed.fields.forEach(field => {
-                        text += field.name + ': ' + field.value + '\n';
-                    });
-                }
-                return text;
-            }).join('\n');
-            message.content = (message.content + '\n' + embedText).trim();
+            const embedText = message.embeds
+                .map((embed) => {
+                    let text = "";
+                    if (embed.title) text += embed.title + "\n";
+                    if (embed.description) text += embed.description + "\n";
+                    if (embed.fields) {
+                        embed.fields.forEach((field) => {
+                            text += field.name + ": " + field.value + "\n";
+                        });
+                    }
+                    return text;
+                })
+                .join("\n");
+            message.content = (message.content + "\n" + embedText).trim();
         }
-        
-        console.log('RIVAL MESSAGE STORED TO CONTEXT:', {
+
+        secureLogger.debug("Rival message stored to context", {
             author: message.author.username,
-            content: message.content,
             hasEmbeds: message.embeds.length > 0,
-            channel: message.channel.id
+            channel: message.channel.id,
         });
-        
+
         // Re-add the modified message to context with parsed embed content
         contextManager.addMessage(message);
-        
+
         // Rival bot messages should trigger potential responses
         responseCollapse.shouldCollapse(message, client.user.id);
         return;
@@ -301,84 +394,96 @@ client.on("messageCreate", async (message) => {
 
     if (message.content === "!cowsay help rivals") {
         const embed = new EmbedBuilder()
-            .setTitle('🔥 Rivals System Help')
+            .setTitle("🔥 Rivals System Help")
             .setColor(0xff4444)
-            .setDescription('Configure rivals for Cowsay to interact with! Rivals are other bots that Cowsay will investigate and try to discover commands for.')
+            .setDescription(
+                "Configure rivals for Cowsay to interact with! Rivals are other bots that Cowsay will investigate and try to discover commands for."
+            )
             .addFields(
                 {
-                    name: '📝 Commands',
-                    value: '`!cowsay rival add @user <description>` - Add a rival with custom description\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all configured rivals',
-                    inline: false
+                    name: "📝 Commands",
+                    value: "`!cowsay rival add @user <description>` - Add a rival with custom description\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all configured rivals",
+                    inline: false,
                 },
                 {
-                    name: '🤖 How It Works',
-                    value: 'When you add a rival, Cowsay will:\n• Monitor their messages and responses\n• Try to discover their commands\n• Ask users to help run commands\n• Be sassy and competitive with them',
-                    inline: false
+                    name: "🤖 How It Works",
+                    value: "When you add a rival, Cowsay will:\n• Monitor their messages and responses\n• Try to discover their commands\n• Ask users to help run commands\n• Be sassy and competitive with them",
+                    inline: false,
                 },
                 {
-                    name: '⚙️ Per-Server',
-                    value: 'Rivals are configured per server - each server has its own rival list that only affects that server.',
-                    inline: false
+                    name: "⚙️ Per-Server",
+                    value: "Rivals are configured per server - each server has its own rival list that only affects that server.",
+                    inline: false,
                 }
             )
-            .setFooter({ text: 'Example: !cowsay rival add @bark terrible bot with mysterious commands' });
-        
+            .setFooter({
+                text: "Example: !cowsay rival add @bark terrible bot with mysterious commands",
+            });
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay help coins") {
         const embed = new EmbedBuilder()
-            .setTitle('🪙 Coin System Help')
+            .setTitle("🪙 Coin System Help")
             .setColor(0xffd700)
-            .setDescription('Earn coins by playing games and use them to purchase premium items!')
+            .setDescription(
+                "Earn coins by playing games and use them to purchase premium items!"
+            )
             .addFields(
                 {
-                    name: '🎮 Earning Coins',
-                    value: '• **Pong**: 50 coins (win), 10 coins (participation), +25 bonus (shutout)\n• **Tic-Tac-Toe**: 30 coins (win), 5 coins (participation)\n• **Battleship**: 100 coins (win), 15 coins (participation)\n• **Balatro**: 25-150 coins (progressive), +50 bonus (ante 8+)\n• **Blackjack**: Variable based on betting',
-                    inline: false
+                    name: "🎮 Earning Coins",
+                    value: "• **Pong**: 50 coins (win), 10 coins (participation), +25 bonus (shutout)\n• **Tic-Tac-Toe**: 30 coins (win), 5 coins (participation)\n• **Battleship**: 100 coins (win), 15 coins (participation)\n• **Balatro**: 25-150 coins (progressive), +50 bonus (ante 8+)\n• **Blackjack**: Variable based on betting",
+                    inline: false,
                 },
                 {
-                    name: '⚡ Bonus Multipliers',
-                    value: '• **Win Streaks**: +10% per consecutive win (max 50%)\n• **First Win of Day**: 2x multiplier on all rewards\n• **Perfect Games**: Extra bonus coins for exceptional play\n• **Daily Bonus**: Up to 100 coins (for players under 1000)',
-                    inline: false
+                    name: "⚡ Bonus Multipliers",
+                    value: "• **Win Streaks**: +10% per consecutive win (max 50%)\n• **First Win of Day**: 2x multiplier on all rewards\n• **Perfect Games**: Extra bonus coins for exceptional play\n• **Daily Bonus**: Up to 100 coins (for players under 1000)",
+                    inline: false,
                 },
                 {
-                    name: '📊 Commands',
-                    value: '`!cowsay balance` - Check your current balance\n`!cowsay daily` - Claim daily bonus\n`!cowsay transactions` - View recent transactions\n`!cowsay leaderboard` - See top coin holders',
-                    inline: false
+                    name: "📊 Commands",
+                    value: "`!cowsay balance` - Check your current balance\n`!cowsay daily` - Claim daily bonus\n`!cowsay transactions` - View recent transactions\n`!cowsay leaderboard` - See top coin holders",
+                    inline: false,
                 }
             )
-            .setFooter({ text: 'Play games to earn coins and climb the leaderboard!' });
-        
+            .setFooter({
+                text: "Play games to earn coins and climb the leaderboard!",
+            });
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay help shop") {
         const embed = new EmbedBuilder()
-            .setTitle('🛒 Shop System Help')
+            .setTitle("🛒 Shop System Help")
             .setColor(0x9b59b6)
-            .setDescription('Purchase premium characters and boosts with your hard-earned coins!')
+            .setDescription(
+                "Purchase premium characters and boosts with your hard-earned coins!"
+            )
             .addFields(
                 {
-                    name: '🎭 Premium Characters',
-                    value: '• **Dragon** (500 coins) - Fierce dragon ASCII art\n• **Tux Penguin** (300 coins) - Linux mascot penguin\n• **Darth Vader** (750 coins) - Dark side ASCII art\n• **Elephant** (400 coins) - Majestic elephant ASCII\n• **Ghostbusters** (600 coins) - Who you gonna call?',
-                    inline: false
+                    name: "🎭 Premium Characters",
+                    value: "• **Dragon** (500 coins) - Fierce dragon ASCII art\n• **Tux Penguin** (300 coins) - Linux mascot penguin\n• **Darth Vader** (750 coins) - Dark side ASCII art\n• **Elephant** (400 coins) - Majestic elephant ASCII\n• **Ghostbusters** (600 coins) - Who you gonna call?",
+                    inline: false,
                 },
                 {
-                    name: '⚡ Boosts (Coming Soon)',
-                    value: '• **Daily Boost** (1000 coins) - Double daily bonus for 7 days\n• **Streak Shield** (1500 coins) - Protect win streak from one loss',
-                    inline: false
+                    name: "⚡ Boosts (Coming Soon)",
+                    value: "• **Daily Boost** (1000 coins) - Double daily bonus for 7 days\n• **Streak Shield** (1500 coins) - Protect win streak from one loss",
+                    inline: false,
                 },
                 {
-                    name: '🛍️ How to Shop',
-                    value: '1. Use `!cowsay shop` to browse items\n2. Click the buttons to purchase items\n3. Use your new characters with `!<character>say <text>`\n4. Buttons are disabled if you can\'t afford an item',
-                    inline: false
+                    name: "🛍️ How to Shop",
+                    value: "1. Use `!cowsay shop` to browse items\n2. Click the buttons to purchase items\n3. Use your new characters with `!<character>say <text>`\n4. Buttons are disabled if you can't afford an item",
+                    inline: false,
                 }
             )
-            .setFooter({ text: 'Earn coins by playing games to unlock premium content!' });
-        
+            .setFooter({
+                text: "Earn coins by playing games to unlock premium content!",
+            });
+
         message.reply({ embeds: [embed] });
         return;
     }
@@ -389,32 +494,16 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!cowsay balance") {
-        console.log(`[BALANCE] Getting balance for user ${message.author.id}`);
-        const balance = await currencyManager.getBalance(message.author.id);
-        const boosts = await currencyManager.getBoostStatus(message.author.id);
-        console.log(`[BALANCE] Retrieved balance: ${balance}`);
-        
-        let response = `🪙 You have **${balance}** coins!`;
-        
-        if (boosts.dailyBoost || boosts.streakShields > 0) {
-            response += '\n\n**Active Boosts:**';
-            if (boosts.dailyBoost) {
-                const expires = new Date(boosts.dailyBoostExpires).toLocaleDateString();
-                response += `\n⚡ Daily Boost (2x daily bonus until ${expires})`;
-            }
-            if (boosts.streakShields > 0) {
-                response += `\n🛡️ Streak Shield (${boosts.streakShields} protection${boosts.streakShields > 1 ? 's' : ''})`;
-            }
-        }
-        
-        message.reply(response);
+        await balanceCommand.execute(message);
         return;
     }
 
     if (message.content === "!cowsay daily") {
         const result = await currencyManager.getDailyBonus(message.author.id);
         if (result.success) {
-            const boostText = result.boosted ? ' (2x Daily Boost applied!)' : '';
+            const boostText = result.boosted
+                ? " (2x Daily Boost applied!)"
+                : "";
             message.reply(
                 `🎁 Daily bonus claimed! +${result.amount} coins${boostText} New balance: **${result.newBalance}** coins 🪙`
             );
@@ -457,7 +546,10 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!cowsay transactions") {
-        const history = await currencyManager.getTransactionHistory(message.author.id, 25);
+        const history = await currencyManager.getTransactionHistory(
+            message.author.id,
+            25
+        );
         if (history.length === 0) {
             message.reply("No transaction history found! 📊");
             return;
@@ -466,30 +558,393 @@ client.on("messageCreate", async (message) => {
         const entries = history.map((tx, index) => {
             const sign = tx.amount >= 0 ? "+" : "";
             const date = new Date(tx.created_at).toLocaleDateString();
-            const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('participation') ? '🎖️' : '🪙';
+            const emoji = tx.reason.includes("perfect")
+                ? "🏆"
+                : tx.reason.includes("win")
+                ? "🎆"
+                : tx.reason.includes("participation")
+                ? "🎖️"
+                : "🪙";
             return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
         });
 
         if (entries.length <= 5) {
             const embed = new EmbedBuilder()
-                .setTitle(`📊 ${message.author.displayName}'s Transaction History`)
+                .setTitle(
+                    `📊 ${message.author.displayName}'s Transaction History`
+                )
                 .setColor(0x00ae86)
                 .setDescription(entries.join("\n\n"))
                 .setFooter({ text: `Last ${entries.length} transactions` });
             message.reply({ embeds: [embed] });
         } else {
-            await Pagination.create(message, `${message.author.displayName}'s Transactions`, entries, 5);
+            await Pagination.create(
+                message,
+                `${message.author.displayName}'s Transactions`,
+                entries,
+                5
+            );
         }
+        return;
+    }
+
+    if (
+        message.content === "!cowsay inventory" ||
+        message.content.startsWith("!cowsay inventory ")
+    ) {
+        const args = message.content.split(" ");
+        const category = args[2]?.toLowerCase();
+
+        const inventory = await inventoryManager.getUserInventory(
+            message.author.id,
+            category
+        );
+        if (inventory.length === 0) {
+            const categoryText = category ? ` ${category}` : "";
+            message.reply(`Your${categoryText} inventory is empty! 🎒`);
+            return;
+        }
+
+        const stats = await inventoryManager.getInventoryStats(
+            message.author.id
+        );
+        const totalValue = stats.reduce((sum, cat) => sum + cat.total_value, 0);
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🎒 ${message.author.displayName}'s Inventory`)
+            .setColor(0x9b59b6)
+            .setDescription(
+                `**${inventory.length}** items • **${totalValue}** coins total value`
+            );
+
+        const categories = [...new Set(inventory.map((item) => item.category))];
+
+        for (const cat of categories) {
+            const categoryItems = inventory.filter(
+                (item) => item.category === cat
+            );
+            const itemList = categoryItems
+                .map((item) => {
+                    const methodEmoji = {
+                        purchase: "🛒",
+                        gift: "🎁",
+                        reward: "🏆",
+                        admin: "🔧",
+                    };
+                    const date = new Date(
+                        item.acquired_date
+                    ).toLocaleDateString();
+                    const giftedBy = item.gifted_by
+                        ? ` (from <@${item.gifted_by}>)`
+                        : "";
+                    return `${methodEmoji[item.acquired_method]} **${
+                        item.name
+                    }** - ${item.price} coins\n*Acquired ${date}${giftedBy}*`;
+                })
+                .join("\n\n");
+
+            const categoryEmoji =
+                cat === "character" ? "🎭" : cat === "boost" ? "⚡" : "🛍️";
+            embed.addFields({
+                name: `${categoryEmoji} ${
+                    cat.charAt(0).toUpperCase() + cat.slice(1)
+                }s (${categoryItems.length})`,
+                value: itemList,
+                inline: false,
+            });
+        }
+
+        embed.setFooter({
+            text: "Use !cowsay inventory characters or !cowsay inventory boosts to filter",
+        });
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay gift ")) {
+        const args = message.content.slice(13).trim().split(" ");
+        const mention = message.mentions.users.first();
+
+        if (!mention) {
+            message.reply("Usage: `!cowsay gift @user <item_name> [message]`");
+            return;
+        }
+
+        const itemName = args[1];
+        if (!itemName) {
+            message.reply(
+                "Please specify an item to gift! Usage: `!cowsay gift @user <item_name> [message]`"
+            );
+            return;
+        }
+
+        // Find item by name
+        const items = await shopManager.getShopItems();
+        const item = items.find(
+            (i) =>
+                i.name.toLowerCase().includes(itemName.toLowerCase()) ||
+                i.item_id === itemName.toLowerCase()
+        );
+
+        if (!item) {
+            message.reply(
+                `Item "${itemName}" not found! Use \`!cowsay shop\` to see available items.`
+            );
+            return;
+        }
+
+        const giftMessage =
+            args.slice(2).join(" ").replace(`<@${mention.id}>`, "").trim() ||
+            null;
+        const result = await giftManager.sendGift(
+            message.author.id,
+            mention.id,
+            item.item_id,
+            giftMessage
+        );
+
+        if (result.success) {
+            const embed = new EmbedBuilder()
+                .setTitle("🎁 Gift Sent!")
+                .setColor(0x00ff00)
+                .setDescription(
+                    `You sent **${result.item.name}** to <@${mention.id}> for **${result.cost}** coins!`
+                )
+                .addFields(
+                    { name: "Item", value: result.item.name, inline: true },
+                    {
+                        name: "Cost",
+                        value: `${result.cost} coins (${result.item.price} + 10% fee)`,
+                        inline: true,
+                    }
+                );
+
+            if (result.message) {
+                embed.addFields({
+                    name: "Message",
+                    value: result.message,
+                    inline: false,
+                });
+            }
+
+            message.reply({ embeds: [embed] });
+
+            // Notify recipient
+            try {
+                const recipientEmbed = new EmbedBuilder()
+                    .setTitle("🎁 You Received a Gift!")
+                    .setColor(0x00ff00)
+                    .setDescription(
+                        `<@${message.author.id}> sent you **${result.item.name}**!`
+                    )
+                    .addFields({
+                        name: "Item",
+                        value: result.item.description,
+                        inline: false,
+                    });
+
+                if (result.message) {
+                    recipientEmbed.addFields({
+                        name: "Message",
+                        value: result.message,
+                        inline: false,
+                    });
+                }
+
+                if (item.category === "character") {
+                    recipientEmbed.setFooter({
+                        text: `Use !${item.item_id}say <text> to try your new character!`,
+                    });
+                }
+
+                await mention.send({ embeds: [recipientEmbed] });
+            } catch (error) {
+                // Ignore DM errors
+            }
+        } else {
+            message.reply(`❌ ${result.error}`);
+        }
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay gifts ")) {
+        const args = message.content.split(" ");
+        const type = args[2]?.toLowerCase();
+
+        if (!["sent", "received"].includes(type)) {
+            message.reply(
+                "Usage: `!cowsay gifts sent` or `!cowsay gifts received`"
+            );
+            return;
+        }
+
+        const history = await giftManager.getGiftHistory(
+            message.author.id,
+            type,
+            10
+        );
+        if (history.length === 0) {
+            message.reply(`You haven't ${type} any gifts yet! 🎁`);
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(
+                `🎁 Gifts ${type.charAt(0).toUpperCase() + type.slice(1)}`
+            )
+            .setColor(0x9b59b6)
+            .setDescription(
+                history
+                    .map((gift) => {
+                        const date = new Date(
+                            gift.created_at
+                        ).toLocaleDateString();
+                        const otherUser =
+                            type === "sent"
+                                ? gift.recipient_id
+                                : gift.sender_id;
+                        const direction = type === "sent" ? "to" : "from";
+                        const messageText = gift.message
+                            ? `\n*"${gift.message}"*`
+                            : "";
+                        return `**${gift.item_name}** ${direction} <@${otherUser}> (${gift.cost} coins)\n*${date}*${messageText}`;
+                    })
+                    .join("\n\n")
+            )
+            .setFooter({ text: `Last ${history.length} gifts ${type}` });
+
+        message.reply({ embeds: [embed] });
+        return;
+    }
+
+    if (message.content.startsWith("!cowsay wishlist ")) {
+        const args = message.content.slice(17).trim().split(" ");
+        const action = args[0]?.toLowerCase();
+
+        if (action === "add") {
+            const itemName = args.slice(1).join(" ");
+            if (!itemName) {
+                message.reply(
+                    "Usage: `!cowsay wishlist add <item_name> [message]`"
+                );
+                return;
+            }
+
+            // Find item by name
+            const items = await shopManager.getShopItems();
+            const item = items.find(
+                (i) =>
+                    i.name.toLowerCase().includes(itemName.toLowerCase()) ||
+                    i.item_id === itemName.toLowerCase()
+            );
+
+            if (!item) {
+                message.reply(
+                    `Item "${itemName}" not found! Use \`!cowsay shop\` to see available items.`
+                );
+                return;
+            }
+
+            const result = await giftManager.addToWishlist(
+                message.author.id,
+                item.item_id
+            );
+            if (result.success) {
+                message.reply(
+                    `✅ Added **${result.item.name}** to your wishlist!`
+                );
+            } else {
+                message.reply(`❌ ${result.error}`);
+            }
+            return;
+        }
+
+        if (action === "remove") {
+            const itemName = args.slice(1).join(" ");
+            if (!itemName) {
+                message.reply("Usage: `!cowsay wishlist remove <item_name>`");
+                return;
+            }
+
+            // Find item by name
+            const items = await shopManager.getShopItems();
+            const item = items.find(
+                (i) =>
+                    i.name.toLowerCase().includes(itemName.toLowerCase()) ||
+                    i.item_id === itemName.toLowerCase()
+            );
+
+            if (!item) {
+                message.reply(`Item "${itemName}" not found!`);
+                return;
+            }
+
+            const result = await giftManager.removeFromWishlist(
+                message.author.id,
+                item.item_id
+            );
+            if (result.success) {
+                message.reply(
+                    `✅ Removed **${item.name}** from your wishlist.`
+                );
+            } else {
+                message.reply("❌ Item not found in your wishlist.");
+            }
+            return;
+        }
+
+        // Show user's own wishlist or mentioned user's wishlist
+        const mention = message.mentions.users.first();
+        const targetUser = mention || message.author;
+
+        const wishlist = await giftManager.getWishlist(targetUser.id);
+        if (wishlist.length === 0) {
+            const possessive = mention ? `${mention.displayName}'s` : "Your";
+            message.reply(`${possessive} wishlist is empty! 🎁`);
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(
+                `🎁 ${mention ? mention.displayName + "'s" : "Your"} Wishlist`
+            )
+            .setColor(0x9b59b6)
+            .setDescription(
+                wishlist
+                    .map((item) => {
+                        const giftCost = giftManager.calculateGiftCost(
+                            item.price
+                        );
+                        const date = new Date(
+                            item.created_at
+                        ).toLocaleDateString();
+                        return `**${item.name}** - ${giftCost} coins to gift\n*${item.description}*\n*Added ${date}*`;
+                    })
+                    .join("\n\n")
+            )
+            .setFooter({
+                text: mention
+                    ? `Use !cowsay gift @${mention.displayName} <item> to send a gift!`
+                    : "Use !cowsay wishlist add/remove <item> to manage",
+            });
+
+        message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay shop") {
         try {
             const items = await shopManager.getShopItems();
-            const userPurchases = await shopManager.getUserPurchases(message.author.id);
-            const userBalance = await currencyManager.getBalance(message.author.id);
-            const boosts = await currencyManager.getBoostStatus(message.author.id);
-            
+            const userPurchases = await shopManager.getUserPurchases(
+                message.author.id
+            );
+            const userBalance = await currencyManager.getBalance(
+                message.author.id
+            );
+            const boosts = await currencyManager.getBoostStatus(
+                message.author.id
+            );
+
             if (!items || items.length === 0) {
                 message.reply("Shop is currently empty! 🛒");
                 return;
@@ -498,237 +953,156 @@ client.on("messageCreate", async (message) => {
             const embed = new EmbedBuilder()
                 .setTitle("🛒 Cowsay Shop")
                 .setColor(0x9b59b6)
-                .setDescription(`Purchase premium characters and boosts with your coins!\n🪙 **Your Balance: ${userBalance} coins**`);
+                .setDescription(
+                    `Purchase premium characters and boosts with your coins!\n🪙 **Your Balance: ${userBalance} coins**`
+                );
 
-            const categories = [...new Set(items.map(item => item.category))];
-            
+            const categories = [...new Set(items.map((item) => item.category))];
+
             for (const category of categories) {
-                const categoryItems = items.filter(item => item.category === category);
-                const itemList = categoryItems.map(item => {
-                    let status;
-                    if (category === 'character') {
-                        const owned = userPurchases.includes(item.item_id);
-                        status = owned ? "✅ Owned" : `💰 ${item.price} coins`;
-                    } else if (category === 'boost') {
-                        if (item.item_id === 'daily_boost') {
-                            status = boosts.dailyBoost ? "⚡ Active" : `💰 ${item.price} coins`;
-                        } else if (item.item_id === 'streak_shield') {
-                            status = boosts.streakShields > 0 ? `🛡️ ${boosts.streakShields} owned` : `💰 ${item.price} coins`;
+                const categoryItems = items.filter(
+                    (item) => item.category === category
+                );
+                const itemList = categoryItems
+                    .map((item) => {
+                        let status;
+                        if (category === "character") {
+                            const owned = userPurchases.includes(item.item_id);
+                            status = owned
+                                ? "✅ Owned"
+                                : `💰 ${item.price} coins`;
+                        } else if (category === "boost") {
+                            if (item.item_id === "daily_boost") {
+                                status = boosts.dailyBoost
+                                    ? "⚡ Active"
+                                    : `💰 ${item.price} coins`;
+                            } else if (item.item_id === "streak_shield") {
+                                status =
+                                    boosts.streakShields > 0
+                                        ? `🛡️ ${boosts.streakShields} owned`
+                                        : `💰 ${item.price} coins`;
+                            } else {
+                                status = `💰 ${item.price} coins`;
+                            }
                         } else {
                             status = `💰 ${item.price} coins`;
                         }
-                    } else {
-                        status = `💰 ${item.price} coins`;
-                    }
-                    return `**${item.name}** - ${status}\n*${item.description}*`;
-                }).join('\n\n');
-                
-                const categoryEmoji = category === 'character' ? '🎭' : category === 'boost' ? '⚡' : '🛍️';
+                        return `**${item.name}** - ${status}\n*${item.description}*`;
+                    })
+                    .join("\n\n");
+
+                const categoryEmoji =
+                    category === "character"
+                        ? "🎭"
+                        : category === "boost"
+                        ? "⚡"
+                        : "🛍️";
                 embed.addFields({
-                    name: `${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)}s`,
+                    name: `${categoryEmoji} ${
+                        category.charAt(0).toUpperCase() + category.slice(1)
+                    }s`,
                     value: itemList,
-                    inline: false
+                    inline: false,
                 });
             }
 
-            // Create buttons for purchasable items
+            // Create buttons for purchasable and giftable items
             const buttons = [];
-            
+
             for (const item of items) {
                 let canPurchase = userBalance >= item.price;
-                
-                // Special logic for different item types
-                if (item.category === 'character' && userPurchases.includes(item.item_id)) {
-                    continue; // Skip owned characters
-                } else if (item.category === 'boost') {
-                    if (item.item_id === 'daily_boost' && boosts.dailyBoost) {
-                        continue; // Skip if daily boost is active
+                let isOwned = false;
+
+                // Check ownership logic
+                if (
+                    item.category === "character" &&
+                    userPurchases.includes(item.item_id)
+                ) {
+                    isOwned = true;
+                } else if (item.category === "boost") {
+                    if (item.item_id === "daily_boost" && boosts.dailyBoost) {
+                        isOwned = true;
                     }
                     // Streak shields can always be purchased (stackable)
                 }
-                
-                if (buttons.length < 25) { // Discord limit
-                    buttons.push(
-                        new ButtonBuilder()
-                            .setCustomId(`shop_buy_${item.item_id}`)
-                            .setLabel(`${item.name} (${item.price}🪙)`)
-                            .setStyle(canPurchase ? ButtonStyle.Primary : ButtonStyle.Secondary)
-                            .setDisabled(!canPurchase)
-                    );
+
+                if (buttons.length < 25) {
+                    // Discord limit
+                    if (!isOwned) {
+                        // Purchase button for unowned items
+                        buttons.push(
+                            new ButtonBuilder()
+                                .setCustomId(`shop_buy_${item.item_id}`)
+                                .setLabel(`Buy ${item.name} (${item.price}🪙)`)
+                                .setStyle(
+                                    canPurchase
+                                        ? ButtonStyle.Primary
+                                        : ButtonStyle.Secondary
+                                )
+                                .setDisabled(!canPurchase)
+                        );
+                    } else if (item.category === "character") {
+                        // Gift button for owned characters
+                        const giftCost = Math.floor(item.price * 1.1);
+                        const canGift = userBalance >= giftCost;
+                        buttons.push(
+                            new ButtonBuilder()
+                                .setCustomId(`shop_gift_${item.item_id}`)
+                                .setLabel(`Gift ${item.name} (${giftCost}🪙)`)
+                                .setStyle(
+                                    canGift
+                                        ? ButtonStyle.Success
+                                        : ButtonStyle.Secondary
+                                )
+                                .setDisabled(!canGift)
+                        );
+                    }
                 }
             }
 
             const components = [];
             for (let i = 0; i < buttons.length; i += 5) {
                 components.push(
-                    new ActionRowBuilder().addComponents(buttons.slice(i, i + 5))
+                    new ActionRowBuilder().addComponents(
+                        buttons.slice(i, i + 5)
+                    )
                 );
             }
 
             embed.setFooter({ text: "Click buttons below to purchase items" });
             message.reply({ embeds: [embed], components });
         } catch (error) {
-            console.log('Shop error:', error);
-            message.reply("❌ Shop is currently unavailable. Please try again later.");
+            Logger.error("Shop error", error.message);
+            message.reply(
+                "❌ Shop is currently unavailable. Please try again later."
+            );
         }
         return;
     }
 
     if (message.content.startsWith("!cowsay buy ")) {
-        message.reply("🛒 Use `!cowsay shop` and click the buttons to purchase items!");
+        message.reply(
+            "🛒 Use `!cowsay shop` and click the buttons to purchase items!"
+        );
         return;
     }
 
-    // Catch-all protection for admin commands
+    // Handle admin commands with new modular system
     if (message.content.startsWith("!cowsay admin ")) {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-    }
-
-    if (message.content.startsWith("!cowsay admin addcoins ")) {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-        
-        const args = message.content.slice(23).trim().split(' ');
-        const mention = message.mentions.users.first();
-        const amount = parseInt(args[1]);
-        
-        if (!mention || !amount || amount <= 0) {
-            message.reply('Usage: `!cowsay admin addcoins @user <amount> [reason]`');
-            return;
-        }
-        
-        const reason = args.slice(2).join(' ') || 'Admin grant';
-        const result = await currencyManager.adminAddCoins(mention.id, amount, reason);
-        
-        if (result.success) {
-            message.reply(`✅ Added **${amount}** coins to <@${mention.id}>. New balance: **${result.newBalance}** coins`);
-        } else {
-            message.reply(`❌ Failed to add coins: ${result.error}`);
-        }
+        const args = message.content.slice(13).trim().split(" ");
+        await adminCommand.execute(message, args);
         return;
     }
 
-    if (message.content.startsWith("!cowsay admin removecoins ")) {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-        
-        const args = message.content.slice(26).trim().split(' ');
-        const mention = message.mentions.users.first();
-        const amount = parseInt(args[1]);
-        
-        if (!mention || !amount || amount <= 0) {
-            message.reply('Usage: `!cowsay admin removecoins @user <amount> [reason]`');
-            return;
-        }
-        
-        const reason = args.slice(2).join(' ') || 'Admin removal';
-        const result = await currencyManager.adminRemoveCoins(mention.id, amount, reason);
-        
-        if (result.success) {
-            message.reply(`✅ Removed **${result.actualAmount}** coins from <@${mention.id}>. New balance: **${result.newBalance}** coins`);
-        } else {
-            message.reply(`❌ Failed to remove coins: ${result.error}`);
-        }
-        return;
-    }
 
-    if (message.content === "!cowsay admin transactions") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-        
-        const history = await currencyManager.getAllTransactions(20);
-        if (history.length === 0) {
-            message.reply("No transactions found! 📊");
-            return;
-        }
 
-        const embed = new EmbedBuilder()
-            .setTitle("🔍 All Transaction History (Admin)")
-            .setColor(0xff4444)
-            .setDescription(
-                history
-                    .map((tx, index) => {
-                        const sign = tx.amount >= 0 ? "+" : "";
-                        const date = new Date(tx.created_at).toLocaleDateString();
-                        const emoji = tx.reason.includes('perfect') ? '🏆' : tx.reason.includes('win') ? '🎆' : tx.reason.includes('Admin') ? '🔧' : '🪙';
-                        return `${emoji} <@${tx.user_id}> ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
-                    })
-                    .join("\n\n")
-            )
-            .setFooter({ text: "Last 20 transactions across all users" });
 
-        message.reply({ embeds: [embed] });
-        return;
-    }
 
-    if (message.content.startsWith("!cowsay admin balance ")) {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-        
-        const mention = message.mentions.users.first();
-        if (!mention) {
-            message.reply('Usage: `!cowsay admin balance @user`');
-            return;
-        }
-        
-        const balance = await currencyManager.getBalance(mention.id);
-        message.reply(`🪙 <@${mention.id}> has **${balance}** coins`);
-        return;
-    }
 
-    if (message.content === "!cowsay admin help") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
-            return;
-        }
-        
-        const embed = new EmbedBuilder()
-            .setTitle('🔧 Admin Commands Help')
-            .setColor(0xff4444)
-            .setDescription('Administrative commands for managing the coin economy and server settings.')
-            .addFields(
-                {
-                    name: '🪙 Coin Management',
-                    value: '`!cowsay admin addcoins @user <amount> [reason]` - Add coins to a user\n`!cowsay admin removecoins @user <amount> [reason]` - Remove coins from a user\n`!cowsay admin balance @user` - Check any user\'s balance\n`!cowsay admin transactions` - View last 20 transactions (all users)',
-                    inline: false
-                },
-                {
-                    name: '🔥 Rivals Management',
-                    value: '`!cowsay rival add @user <description>` - Add a rival bot\n`!cowsay rival remove @user` - Remove a rival\n`!cowsay rival list` - Show all rivals\n`!cowsay help rivals` - Learn about rivals system',
-                    inline: false
-                },
-                {
-                    name: '🔐 Permissions',
-                    value: '`!cowsay perms setrole <level> @role` - Map role to permission level\n`!cowsay perms removerole @role` - Remove role mapping\n`!cowsay perms listroles` - Show role mappings\n`!cowsay perms check @user` - Check user permission level',
-                    inline: false
-                },
-                {
-                    name: '⚙️ Server Settings',
-                    value: '`!toggleautoreply` - Toggle auto-reply to "cowsay" mentions\n`!toggleintent` - Cycle intent detection modes\n`!showconfig` - Show current server configuration\n`!clearleaderboard` - Clear leaderboard cache',
-                    inline: false
-                },
-                {
-                    name: '📊 Statistics',
-                    value: '`!cowsay serverstats` - View server game statistics\n`!cowsay topplayers` - View server leaderboard\nNote: Users can opt out with `!cowsay optstats out`',
-                    inline: false
-                }
-            )
-            .setFooter({ text: 'All admin commands require Administrator permission or custom role mapping' });
-        
-        message.reply({ embeds: [embed] });
-        return;
-    }
+
+
+
+
 
     // Handle both !cowsay play blackjack and !blackjack commands
     const isBlackjackCommand =
@@ -787,25 +1161,31 @@ client.on("messageCreate", async (message) => {
         const args = message.content.slice(13).trim().split(" ");
         const gameName = args[0].toLowerCase();
         const opponent = message.mentions.users.first();
-        
+
         // Handle pong ai command
-        if (gameName === 'pong' && args[1] === 'ai') {
-            const pong = require('./modules/games/pong');
+        if (gameName === "pong" && args[1] === "ai") {
             const result = await pong.start(message);
             if (result) {
                 // Auto-start AI game
                 const game = result.gameData;
-                game.player2 = { id: "ai_player", name: "AI", paddle: 4, isAI: true };
+                game.player2 = {
+                    id: "ai_player",
+                    name: "AI",
+                    paddle: 4,
+                    isAI: true,
+                };
                 game.phase = "countdown";
-                
+
                 // Create fake interaction for countdown
                 const fakeInteraction = {
                     editReply: async (options) => {
-                        const msg = await message.channel.messages.fetch(game.messageId);
+                        const msg = await message.channel.messages.fetch(
+                            game.messageId
+                        );
                         await msg.edit(options);
-                    }
+                    },
                 };
-                
+
                 await pong.startCountdown(fakeInteraction, game);
             }
             return;
@@ -822,11 +1202,20 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!clearleaderboard") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.MODERATOR))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.MODERATOR));
+        if (
+            !(await discordPermissions.hasPermission(
+                message,
+                discordPermissions.PERMISSION_LEVELS.MODERATOR
+            ))
+        ) {
+            message.reply(
+                discordPermissions.getPermissionError(
+                    discordPermissions.PERMISSION_LEVELS.MODERATOR
+                )
+            );
             return;
         }
-        
+
         const count = leaderboardHandler.clearAllPending();
         message.reply(
             `Cleared ${count} pending leaderboard(s) from all channels! 🧹`
@@ -835,218 +1224,325 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content.startsWith("!cowsay rival ")) {
-        const args = message.content.slice(14).trim().split(' ');
+        const args = message.content.slice(14).trim().split(" ");
         const action = args[0]?.toLowerCase();
-        
-        if (action === 'add') {
-            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+
+        if (action === "add") {
+            if (
+                !(await discordPermissions.hasPermission(
+                    message,
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                ))
+            ) {
+                message.reply(
+                    discordPermissions.getPermissionError(
+                        discordPermissions.PERMISSION_LEVELS.ADMIN
+                    )
+                );
                 return;
             }
-            
+
             const mention = message.mentions.users.first();
             if (!mention) {
-                message.reply('Please mention a user to add as a rival! Usage: `!cowsay rival add @user description`');
+                message.reply(
+                    "Please mention a user to add as a rival! Usage: `!cowsay rival add @user description`"
+                );
                 return;
             }
-            
+
             if (mention.id === client.user.id) {
-                message.reply('I cannot be my own rival! 😅');
+                message.reply("I cannot be my own rival! 😅");
                 return;
             }
-            
-            const description = args.slice(1).join(' ').replace(`<@${mention.id}>`, '').trim();
+
+            const description = args
+                .slice(1)
+                .join(" ")
+                .replace(`<@${mention.id}>`, "")
+                .trim();
             if (!description) {
-                message.reply('Please provide a description for the rival! Usage: `!cowsay rival add @user description`');
+                message.reply(
+                    "Please provide a description for the rival! Usage: `!cowsay rival add @user description`"
+                );
                 return;
             }
-            
-            const success = await rivalManager.addRival(message.guild?.id, mention.id, mention.username, description);
+
+            const success = await rivalManager.addRival(
+                message.guild?.id,
+                mention.id,
+                mention.username,
+                description
+            );
             if (success) {
-                message.reply(`🔥 Added **${mention.username}** as a rival! ${description}`);
+                message.reply(
+                    `🔥 Added **${mention.username}** as a rival! ${description}`
+                );
             } else {
-                message.reply('❌ Failed to add rival. Please try again.');
+                message.reply("❌ Failed to add rival. Please try again.");
             }
             return;
         }
-        
-        if (action === 'remove') {
-            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+
+        if (action === "remove") {
+            if (
+                !(await discordPermissions.hasPermission(
+                    message,
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                ))
+            ) {
+                message.reply(
+                    discordPermissions.getPermissionError(
+                        discordPermissions.PERMISSION_LEVELS.ADMIN
+                    )
+                );
                 return;
             }
-            
+
             const mention = message.mentions.users.first();
             if (!mention) {
-                message.reply('Please mention a user to remove as a rival! Usage: `!cowsay rival remove @user`');
+                message.reply(
+                    "Please mention a user to remove as a rival! Usage: `!cowsay rival remove @user`"
+                );
                 return;
             }
-            
-            const success = await rivalManager.removeRival(message.guild?.id, mention.id);
+
+            const success = await rivalManager.removeRival(
+                message.guild?.id,
+                mention.id
+            );
             if (success) {
                 message.reply(`✅ Removed **${mention.username}** as a rival.`);
             } else {
-                message.reply('❌ That user is not a rival or removal failed.');
+                message.reply("❌ That user is not a rival or removal failed.");
             }
             return;
         }
-        
-        if (action === 'list') {
+
+        if (action === "list") {
             const rivals = await rivalManager.getRivals(message.guild?.id);
             if (rivals.length === 0) {
-                message.reply('No rivals configured for this server.');
+                message.reply("No rivals configured for this server.");
                 return;
             }
-            
+
             const embed = new EmbedBuilder()
-                .setTitle('🔥 Server Rivals')
+                .setTitle("🔥 Server Rivals")
                 .setColor(0xff4444)
-                .setDescription(rivals.map(r => `**${r.name}** - ${r.description}`).join('\n'))
+                .setDescription(
+                    rivals
+                        .map((r) => `**${r.name}** - ${r.description}`)
+                        .join("\n")
+                )
                 .setFooter({ text: `${rivals.length} rival(s) configured` });
-            
+
             message.reply({ embeds: [embed] });
             return;
         }
-        
-        message.reply('Usage: `!cowsay rival add @user description`, `!cowsay rival remove @user`, or `!cowsay rival list`');
+
+        message.reply(
+            "Usage: `!cowsay rival add @user description`, `!cowsay rival remove @user`, or `!cowsay rival list`"
+        );
         return;
     }
 
     if (message.content.startsWith("!cowsay perms ")) {
-        const args = message.content.slice(14).trim().split(' ');
+        const args = message.content.slice(14).trim().split(" ");
         const action = args[0]?.toLowerCase();
-        
-        if (action === 'setrole') {
-            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+
+        if (action === "setrole") {
+            if (
+                !(await discordPermissions.hasPermission(
+                    message,
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                ))
+            ) {
+                message.reply(
+                    discordPermissions.getPermissionError(
+                        discordPermissions.PERMISSION_LEVELS.ADMIN
+                    )
+                );
                 return;
             }
-            
+
             const permissionLevel = args[1]?.toLowerCase();
             const role = message.mentions.roles.first();
-            
+
             if (!permissionLevel || !role) {
-                message.reply('Usage: `!cowsay perms setrole <admin|moderator|helper> @role`');
+                message.reply(
+                    "Usage: `!cowsay perms setrole <admin|moderator|helper> @role`"
+                );
                 return;
             }
-            
-            if (!['admin', 'moderator', 'helper'].includes(permissionLevel)) {
-                message.reply('Permission level must be: admin, moderator, or helper');
+
+            if (!["admin", "moderator", "helper"].includes(permissionLevel)) {
+                message.reply(
+                    "Permission level must be: admin, moderator, or helper"
+                );
                 return;
             }
-            
-            const success = await discordPermissions.setRoleMapping(message.guild?.id, role.id, permissionLevel);
+
+            const success = await discordPermissions.setRoleMapping(
+                message.guild?.id,
+                role.id,
+                permissionLevel
+            );
             if (success) {
-                message.reply(`✅ Set role **${role.name}** to **${permissionLevel}** level.`);
+                message.reply(
+                    `✅ Set role **${role.name}** to **${permissionLevel}** level.`
+                );
             } else {
-                message.reply('❌ Failed to set role mapping. Please try again.');
+                message.reply(
+                    "❌ Failed to set role mapping. Please try again."
+                );
             }
             return;
         }
-        
-        if (action === 'removerole') {
-            if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-                message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+
+        if (action === "removerole") {
+            if (
+                !(await discordPermissions.hasPermission(
+                    message,
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                ))
+            ) {
+                message.reply(
+                    discordPermissions.getPermissionError(
+                        discordPermissions.PERMISSION_LEVELS.ADMIN
+                    )
+                );
                 return;
             }
-            
+
             const role = message.mentions.roles.first();
             if (!role) {
-                message.reply('Usage: `!cowsay perms removerole @role`');
+                message.reply("Usage: `!cowsay perms removerole @role`");
                 return;
             }
-            
-            const success = await discordPermissions.removeRoleMapping(message.guild?.id, role.id);
+
+            const success = await discordPermissions.removeRoleMapping(
+                message.guild?.id,
+                role.id
+            );
             if (success) {
-                message.reply(`✅ Removed permission mapping for role **${role.name}**.`);
+                message.reply(
+                    `✅ Removed permission mapping for role **${role.name}**.`
+                );
             } else {
-                message.reply('❌ That role has no custom mapping or removal failed.');
+                message.reply(
+                    "❌ That role has no custom mapping or removal failed."
+                );
             }
             return;
         }
-        
-        if (action === 'listroles') {
-            const roleMappings = await discordPermissions.getRoleMappings(message.guild?.id);
+
+        if (action === "listroles") {
+            const roleMappings = await discordPermissions.getRoleMappings(
+                message.guild?.id
+            );
             if (roleMappings.size === 0) {
-                message.reply('No custom role mappings configured. Using Discord default permissions.');
+                message.reply(
+                    "No custom role mappings configured. Using Discord default permissions."
+                );
                 return;
             }
-            
+
             const embed = new EmbedBuilder()
-                .setTitle('🔐 Role Permission Mappings')
+                .setTitle("🔐 Role Permission Mappings")
                 .setColor(0x5865f2)
-                .setDescription('Custom role mappings for this server:')
-                .setFooter({ text: 'Default: Owner=Admin, Administrator=Admin, Manage Server=Moderator, Manage Messages=Helper' });
-            
+                .setDescription("Custom role mappings for this server:")
+                .setFooter({
+                    text: "Default: Owner=Admin, Administrator=Admin, Manage Server=Moderator, Manage Messages=Helper",
+                });
+
             for (const [roleId, level] of roleMappings) {
                 const role = message.guild.roles.cache.get(roleId);
                 if (role) {
                     embed.addFields({
                         name: role.name,
                         value: `**${level}** level`,
-                        inline: true
+                        inline: true,
                     });
                 }
             }
-            
+
             message.reply({ embeds: [embed] });
             return;
         }
-        
-        if (action === 'check') {
+
+        if (action === "check") {
             const mention = message.mentions.users.first();
             if (!mention) {
-                message.reply('Usage: `!cowsay perms check @user`');
+                message.reply("Usage: `!cowsay perms check @user`");
                 return;
             }
-            
+
             const targetMember = message.guild.members.cache.get(mention.id);
             if (!targetMember) {
-                message.reply('User not found in this server.');
+                message.reply("User not found in this server.");
                 return;
             }
-            
+
             // Create fake message object for permission checking
             const fakeMessage = { member: targetMember, guild: message.guild };
-            const userLevel = await discordPermissions.getUserPermissionLevel(fakeMessage);
-            
-            message.reply(`**${mention.username}** has **${userLevel}** permission level.`);
+            const userLevel = await discordPermissions.getUserPermissionLevel(
+                fakeMessage
+            );
+
+            message.reply(
+                `**${mention.username}** has **${userLevel}** permission level.`
+            );
             return;
         }
-        
-        message.reply('Usage: `!cowsay perms setrole <level> @role`, `!cowsay perms removerole @role`, `!cowsay perms listroles`, or `!cowsay perms check @user`');
+
+        message.reply(
+            "Usage: `!cowsay perms setrole <level> @role`, `!cowsay perms removerole @role`, `!cowsay perms listroles`, or `!cowsay perms check @user`"
+        );
         return;
     }
 
     if (message.content === "!cowsay myperms") {
-        const userLevel = await discordPermissions.getUserPermissionLevel(message);
-        message.reply(`You have **${userLevel}** permission level in this server.`);
+        const userLevel = await discordPermissions.getUserPermissionLevel(
+            message
+        );
+        message.reply(
+            `You have **${userLevel}** permission level in this server.`
+        );
         return;
     }
 
     if (message.content === "!cowsay stats") {
         const stats = await gameStats.getPersonalStats(message.author.id);
-        
+
         if (Object.keys(stats).length === 0) {
-            message.reply('You haven\'t played any games yet! 🎮');
+            message.reply("You haven't played any games yet! 🎮");
             return;
         }
-        
+
         const embed = new EmbedBuilder()
             .setTitle(`📊 ${message.author.displayName}'s Game Statistics`)
             .setColor(0x00ae86)
             .setThumbnail(message.author.displayAvatarURL());
-        
+
         for (const [gameType, data] of Object.entries(stats)) {
-            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+            const gameEmoji = {
+                pong: "🏓",
+                blackjack: "🃏",
+                tictactoe: "⭕",
+                battleship: "🚢",
+                balatro: "🎰",
+            };
             embed.addFields({
-                name: `${gameEmoji[gameType] || '🎮'} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`,
+                name: `${gameEmoji[gameType] || "🎮"} ${
+                    gameType.charAt(0).toUpperCase() + gameType.slice(1)
+                }`,
                 value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
-                inline: true
+                inline: true,
             });
         }
-        
-        embed.setFooter({ text: 'Use !cowsay stats @user to view someone else\'s stats' });
+
+        embed.setFooter({
+            text: "Use !cowsay stats @user to view someone else's stats",
+        });
         message.reply({ embeds: [embed] });
         return;
     }
@@ -1054,121 +1550,183 @@ client.on("messageCreate", async (message) => {
     if (message.content.startsWith("!cowsay stats ")) {
         const mention = message.mentions.users.first();
         if (!mention) {
-            message.reply('Please mention a user! Usage: `!cowsay stats @user`');
+            message.reply(
+                "Please mention a user! Usage: `!cowsay stats @user`"
+            );
             return;
         }
-        
+
         const stats = await gameStats.getPersonalStats(mention.id);
-        
+
         if (Object.keys(stats).length === 0) {
-            message.reply(`${mention.displayName} hasn't played any games yet! 🎮`);
+            message.reply(
+                `${mention.displayName} hasn't played any games yet! 🎮`
+            );
             return;
         }
-        
+
         const embed = new EmbedBuilder()
             .setTitle(`📊 ${mention.displayName}'s Game Statistics`)
             .setColor(0x00ae86)
             .setThumbnail(mention.displayAvatarURL());
-        
+
         for (const [gameType, data] of Object.entries(stats)) {
-            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+            const gameEmoji = {
+                pong: "🏓",
+                blackjack: "🃏",
+                tictactoe: "⭕",
+                battleship: "🚢",
+                balatro: "🎰",
+            };
             embed.addFields({
-                name: `${gameEmoji[gameType] || '🎮'} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)}`,
+                name: `${gameEmoji[gameType] || "🎮"} ${
+                    gameType.charAt(0).toUpperCase() + gameType.slice(1)
+                }`,
                 value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
-                inline: true
+                inline: true,
             });
         }
-        
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay serverstats") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.MODERATOR))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.MODERATOR));
+        if (
+            !(await discordPermissions.hasPermission(
+                message,
+                discordPermissions.PERMISSION_LEVELS.MODERATOR
+            ))
+        ) {
+            message.reply(
+                discordPermissions.getPermissionError(
+                    discordPermissions.PERMISSION_LEVELS.MODERATOR
+                )
+            );
             return;
         }
-        
+
         const stats = await gameStats.getServerStats(message.guild?.id);
-        
+
         if (stats.length === 0) {
-            message.reply('No games have been played on this server yet! 🎮');
+            message.reply("No games have been played on this server yet! 🎮");
             return;
         }
-        
+
         const embed = new EmbedBuilder()
             .setTitle(`📊 ${message.guild.name} Server Statistics`)
             .setColor(0x5865f2)
             .setThumbnail(message.guild.iconURL());
-        
-        stats.forEach(game => {
-            const gameEmoji = { pong: '🏓', blackjack: '🃏', tictactoe: '⭕', battleship: '🚢', balatro: '🎰' };
+
+        stats.forEach((game) => {
+            const gameEmoji = {
+                pong: "🏓",
+                blackjack: "🃏",
+                tictactoe: "⭕",
+                battleship: "🚢",
+                balatro: "🎰",
+            };
             embed.addFields({
-                name: `${gameEmoji[game.game_type] || '🎮'} ${game.game_type.charAt(0).toUpperCase() + game.game_type.slice(1)}`,
-                value: `**${game.total_games}** games played\n**${game.unique_players}** unique players${game.avg_duration ? `\n**${Math.round(game.avg_duration)}s** avg duration` : ''}`,
-                inline: true
+                name: `${gameEmoji[game.game_type] || "🎮"} ${
+                    game.game_type.charAt(0).toUpperCase() +
+                    game.game_type.slice(1)
+                }`,
+                value: `**${game.total_games}** games played\n**${
+                    game.unique_players
+                }** unique players${
+                    game.avg_duration
+                        ? `\n**${Math.round(game.avg_duration)}s** avg duration`
+                        : ""
+                }`,
+                inline: true,
             });
         });
-        
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay topplayers") {
         const topPlayers = await gameStats.getTopPlayers(message.guild?.id);
-        
+
         if (topPlayers.length === 0) {
-            message.reply('No games have been played on this server yet! 🎮');
+            message.reply("No games have been played on this server yet! 🎮");
             return;
         }
-        
+
         const embed = new EmbedBuilder()
             .setTitle(`🏆 ${message.guild.name} Top Players`)
             .setColor(0xffd700)
-            .setDescription(topPlayers.map((player, index) => {
-                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-                return `${medal} **${player.username}** - ${player.wins} wins (${player.win_rate}% win rate, ${player.total_games} games)`;
-            }).join('\n'))
-            .setFooter({ text: 'Based on total wins across all games' });
-        
+            .setDescription(
+                topPlayers
+                    .map((player, index) => {
+                        const medal =
+                            index === 0
+                                ? "🥇"
+                                : index === 1
+                                ? "🥈"
+                                : index === 2
+                                ? "🥉"
+                                : `${index + 1}.`;
+                        return `${medal} **${player.username}** - ${player.wins} wins (${player.win_rate}% win rate, ${player.total_games} games)`;
+                    })
+                    .join("\n")
+            )
+            .setFooter({ text: "Based on total wins across all games" });
+
         message.reply({ embeds: [embed] });
         return;
     }
 
     if (message.content === "!cowsay optstats") {
-        const args = message.content.split(' ');
+        const args = message.content.split(" ");
         const action = args[2]?.toLowerCase();
-        
-        if (action === 'out') {
+
+        if (action === "out") {
             const success = await gameStats.setOptOut(message.author.id, true);
             if (success) {
-                message.reply('✅ You have opted out of game statistics tracking. Your existing stats have been deleted.');
+                message.reply(
+                    "✅ You have opted out of game statistics tracking. Your existing stats have been deleted."
+                );
             } else {
-                message.reply('❌ Failed to opt out. Please try again.');
+                message.reply("❌ Failed to opt out. Please try again.");
             }
             return;
         }
-        
-        if (action === 'in') {
+
+        if (action === "in") {
             const success = await gameStats.setOptOut(message.author.id, false);
             if (success) {
-                message.reply('✅ You have opted back into game statistics tracking.');
+                message.reply(
+                    "✅ You have opted back into game statistics tracking."
+                );
             } else {
-                message.reply('❌ Failed to opt in. Please try again.');
+                message.reply("❌ Failed to opt in. Please try again.");
             }
             return;
         }
-        
-        message.reply('Usage: `!cowsay optstats out` to opt out or `!cowsay optstats in` to opt back in.');
+
+        message.reply(
+            "Usage: `!cowsay optstats out` to opt out or `!cowsay optstats in` to opt back in."
+        );
         return;
     }
 
     if (message.content === "!toggleautoreply") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+        if (
+            !(await discordPermissions.hasPermission(
+                message,
+                discordPermissions.PERMISSION_LEVELS.ADMIN
+            ))
+        ) {
+            message.reply(
+                discordPermissions.getPermissionError(
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                )
+            );
             return;
         }
-        
+
         const enabled = await autoReply.toggle(message.guild?.id);
         message.reply(
             `Auto-reply to "cowsay" mentions is now ${
@@ -1179,11 +1737,20 @@ client.on("messageCreate", async (message) => {
     }
 
     if (message.content === "!toggleintent") {
-        if (!(await discordPermissions.hasPermission(message, discordPermissions.PERMISSION_LEVELS.ADMIN))) {
-            message.reply(discordPermissions.getPermissionError(discordPermissions.PERMISSION_LEVELS.ADMIN));
+        if (
+            !(await discordPermissions.hasPermission(
+                message,
+                discordPermissions.PERMISSION_LEVELS.ADMIN
+            ))
+        ) {
+            message.reply(
+                discordPermissions.getPermissionError(
+                    discordPermissions.PERMISSION_LEVELS.ADMIN
+                )
+            );
             return;
         }
-        
+
         const mode = await intentDetector.toggle(message.guild?.id);
         const modeEmojis = { LLM: "🧠", EMBEDDING: "🔍", REGEX: "⚙️" };
         message.reply(
@@ -1196,7 +1763,9 @@ client.on("messageCreate", async (message) => {
         const autoReplyEnabled = await autoReply.isEnabled(message.guild?.id);
         const intentMode = await intentDetector.getMode(message.guild?.id);
         const rivals = await rivalManager.getRivals(message.guild?.id);
-        const roleMappings = await discordPermissions.getRoleMappings(message.guild?.id);
+        const roleMappings = await discordPermissions.getRoleMappings(
+            message.guild?.id
+        );
         const shopItems = await shopManager.getShopItems();
 
         const embed = new EmbedBuilder()
@@ -1224,7 +1793,7 @@ client.on("messageCreate", async (message) => {
                 {
                     name: "Rivals System",
                     value: `${
-                        rivals.length > 0 
+                        rivals.length > 0
                             ? `🔥 ${rivals.length} rival(s) configured`
                             : "❌ No rivals configured"
                     }\nCompetitive bot interactions`,
@@ -1286,7 +1855,9 @@ client.on("messageCreate", async (message) => {
                 true
             );
             const messages = [
-                llmService.buildSystemMessage(await commandHandler.getSystemPrompt(message.guild?.id)),
+                llmService.buildSystemMessage(
+                    await commandHandler.getSystemPrompt(message.guild?.id)
+                ),
                 ...context,
                 llmService.buildUserMessage(
                     message.author.displayName,
@@ -1349,7 +1920,9 @@ client.on("messageCreate", async (message) => {
                 false
             );
             const messages = [
-                llmService.buildSystemMessage(await commandHandler.getSystemPrompt(message.guild?.id)),
+                llmService.buildSystemMessage(
+                    await commandHandler.getSystemPrompt(message.guild?.id)
+                ),
                 ...context,
                 llmService.buildUserMessage(
                     message.author.displayName,
@@ -1384,6 +1957,25 @@ client.on("messageCreate", async (message) => {
       /    |___|    \\
      |________________|`;
         message.reply(`\`\`\`\n${rimshot}\n\`\`\``);
+        return;
+    }
+
+    if (message.content.startsWith("!normalize ")) {
+        const text = message.content.slice(11).trim();
+        if (!text) {
+            message.reply("Usage: `!normalize ⲛⲓ🇬ⲏⲧ-🇬ⲇⲛ🇬`");
+            return;
+        }
+        const normalized = unicodeNormalizer.normalize(text);
+        message.reply(`**Input:** ${text}\n**Output:** ${normalized}`);
+        return;
+    }
+
+    if (message.content === "!normalize test") {
+        const success = unicodeNormalizer.test();
+        message.reply(
+            `Unicode normalizer test: ${success ? "✅ PASSED" : "❌ FAILED"}`
+        );
         return;
     }
 
@@ -1447,7 +2039,11 @@ client.on("messageCreate", async (message) => {
             Logger.info("Cowsay command used", {
                 user: message.author.username,
             });
-            const cow = await characterManager.generateAscii('cow', text, message.author.id);
+            const cow = await characterManager.generateAscii(
+                "cow",
+                text,
+                message.author.id
+            );
             const escaped = cow.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
             const formatted = `\`\`\`\n${escaped}\n\`\`\``;
             if (formatted.length > 2000) {
@@ -1477,7 +2073,7 @@ client.on("messageCreate", async (message) => {
 
     // Intent detection - check if message seems directed at Cowsay (only if auto-reply is enabled)
     if (
-        await autoReply.isEnabled(message.guild?.id) &&
+        (await autoReply.isEnabled(message.guild?.id)) &&
         !message.mentions.has(client.user) &&
         message.author.id !== client.user.id &&
         !message.content.includes("-leaderboard") &&
@@ -1534,14 +2130,18 @@ client.on("messageCreate", async (message) => {
                 user: message.author.username,
             });
             try {
-                const result = await characterManager.generateAscii(char, text, message.author.id);
-                
+                const result = await characterManager.generateAscii(
+                    char,
+                    text,
+                    message.author.id
+                );
+
                 // Check if it's a premium character message
-                if (result.includes('🔒')) {
+                if (result.includes("🔒")) {
                     message.reply(result);
                     return;
                 }
-                
+
                 const escaped = result
                     .replace(/\\/g, "\\\\")
                     .replace(/`/g, "\\`");
@@ -1577,7 +2177,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
 
     try {
         if (collapsedMessages.length === 1) {
-            console.log(`[COLLAPSE] Processing single message`);
+            Logger.debug("Processing single collapsed message");
             // Single message - handle normally
             const msg = firstMessage;
             if (msg.reference?.messageId) {
@@ -1599,7 +2199,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                 );
                 const messages = [
                     llmService.buildSystemMessage(
-                        await commandHandler.getSystemPrompt(msg.guild?.id) +
+                        (await commandHandler.getSystemPrompt(msg.guild?.id)) +
                             " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."
                     ),
                     ...context,
@@ -1660,9 +2260,9 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                 await llmService.sendResponse(msg, answer);
             }
         } else {
-            console.log(
-                `[COLLAPSE] Processing ${collapsedMessages.length} batched messages`
-            );
+            Logger.debug("Processing batched collapsed messages", {
+                count: collapsedMessages.length,
+            });
             // Multiple messages - batch response
             const allContent = collapsedMessages
                 .map(
@@ -1679,7 +2279,9 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
             );
             const messages = [
                 llmService.buildSystemMessage(
-                    await commandHandler.getSystemPrompt(firstMessage.guild?.id) +
+                    (await commandHandler.getSystemPrompt(
+                        firstMessage.guild?.id
+                    )) +
                         " Multiple people are talking to you at once. Address all their messages in one response."
                 ),
                 ...context,

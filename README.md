@@ -26,20 +26,25 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 - **Transaction History**: Complete audit trail of all coin movements
 - **Game Statistics**: Comprehensive outcome tracking with privacy controls
 
-### 🛒 Shop System
+### 🛒 Shop & Inventory System
 - **Premium Characters**: Unlock exclusive ASCII characters with coins
 - **Boost Items**: Daily Boost (1000 coins), Streak Shield (1500 coins)
+- **Inventory Management**: Complete ownership tracking with acquisition history
+- **Gifting System**: Send items to other users with 10% fee
+- **Wishlist System**: Public wishlists with integrated gifting
 - **Button Interface**: Click-to-purchase with affordability indicators
-- **Smart Display**: Shows active boosts and ownership status
-- **Transaction Integration**: All purchases logged with full audit trail
+- **Smart Display**: Shows active boosts, ownership status, and gift options
+- **Transaction Integration**: All purchases and gifts logged with full audit trail
 
-### 🛠️ Utilities
+### 🛠️ Utilities & Security
 - **Card Renderer**: ASCII playing cards with custom emojis
-- **Pagination**: Browse large lists efficiently
-- **Rate Limiting**: Prevents spam and abuse
-- **Persistent Storage**: MySQL database for game states
-- **Permission System**: Discord-native role-based access control
+- **Enhanced Pagination**: Browse large lists with proper formatting and navigation
+- **Security Framework**: Comprehensive input validation, SQL injection prevention, and authorization
+- **Rate Limiting**: Prevents spam and abuse with built-in protection
+- **Persistent Storage**: MySQL database with optimized queries and concurrent operations
+- **Permission System**: Discord-native role-based access control with modular commands
 - **Statistics Dashboard**: Personal and server analytics with privacy controls
+- **Cryptographic Security**: Secure random generation and encrypted connections
 
 ## Quick Start
 
@@ -137,14 +142,19 @@ npm start
 - `!blackjack <mode> <bet>` - Quick blackjack
 - `!cowsay join` - Join multiplayer lobbies
 
-### Currency & Shop
-- `!cowsay balance` - Check your coins
-- `!cowsay daily` - Claim daily bonus
+### Currency, Shop & Inventory
+- `!cowsay balance` - Check your coins and active boosts
+- `!cowsay daily` - Claim daily bonus with boost multipliers
 - `!cowsay leaderboard` - Top coin holders (paginated)
 - `!cowsay transactions` - View transaction history (paginated)
-- `!cowsay shop` - Browse premium items (button interface)
+- `!cowsay shop` - Browse premium items with gift options (button interface)
+- `!cowsay inventory [category]` - View your owned items with acquisition history
+- `!cowsay gift @user <item> [message]` - Send items to other users
+- `!cowsay gifts sent/received` - View gift transaction history
+- `!cowsay wishlist add/remove <item> [message]` - Manage your wishlist
+- `!cowsay wishlist @user` - View another user's wishlist
 - `!cowsay help coins` - Learn about earning coins
-- `!cowsay help shop` - Learn about the shop system
+- `!cowsay help shop` - Learn about the shop and inventory system
 
 ### Statistics
 - `!cowsay stats` - View your personal game statistics
@@ -156,11 +166,11 @@ npm start
 - `!cowsay perms setrole <level> @role` - Map Discord role to permission level (admin+)
 - `!cowsay perms listroles` - Show role mappings
 - `!cowsay myperms` - Check your permission level
-- `!cowsay admin help` - View all admin commands (admin+)
+- `!cowsay admin help` - View all admin commands with pagination (admin+)
 - `!cowsay admin addcoins @user <amount> [reason]` - Add coins (admin+)
 - `!cowsay admin removecoins @user <amount> [reason]` - Remove coins (admin+)
 - `!cowsay admin balance @user` - Check any user's balance (admin+)
-- `!cowsay admin transactions` - View all transactions (admin+)
+- `!cowsay admin transactions` - View all transactions with enhanced filtering (admin+)
 
 ### Utilities
 - `!characters` - Browse ASCII characters (paginated)
@@ -226,20 +236,24 @@ npm start
 ## Architecture
 
 ### Core Modules
-- **LLM Integration**: Groq, OpenAI, or local model support
-- **Game Manager**: Unified game system with interaction routing
+- **LLM Integration**: Groq, OpenAI, or local model support with secure connections
+- **Game Manager**: Unified game system with interaction routing and memory leak prevention
 - **Currency System**: Database-backed coin economy with streak bonuses and transaction logging
-- **Context Management**: Conversation history and threading
-- **Security**: Input validation and rate limiting
+- **Inventory System**: Complete ownership tracking with acquisition history and gifting
+- **Security Framework**: Comprehensive input validation, SQL injection prevention, and authorization
+- **Modular Commands**: BaseCommand architecture with built-in security and permission checking
+- **Context Management**: Conversation history and threading with secure logging
 - **Statistics System**: Comprehensive game outcome tracking with privacy controls
-- **Permission System**: Discord-native role-based access control
+- **Permission System**: Discord-native role-based access control with enhanced validation
 - **Rivals System**: Per-server rival bot configuration for dynamic AI behavior
 
-### Database Schema (v9)
+### Database Schema (v10)
 - **User Currency**: Balances, streaks, daily bonuses, and earnings tracking
 - **Coin Transactions**: Complete audit trail of all coin movements
 - **Shop Items**: Premium characters and boosts with pricing
-- **User Purchases**: Ownership tracking for premium content
+- **User Inventory**: Complete ownership tracking with acquisition method and dates
+- **Gift Transactions**: Full audit trail of all gift exchanges with fees
+- **User Wishlists**: Public wishlist system with optional messages
 - **Balatro Games**: Persistent poker game states
 - **Game Outcomes**: Comprehensive statistics for all games
 - **Server Rivals**: Per-server rival bot configurations
@@ -249,17 +263,27 @@ npm start
 ### File Structure
 ```
 ├── modules/
+│   ├── commands/           # Modular command system
+│   │   ├── baseCommand.js  # Secure command foundation
+│   │   ├── adminCommand.js # Admin commands with pagination
+│   │   └── balanceCommand.js # Balance and currency commands
 │   ├── games/              # Game implementations
 │   ├── llmProvider.js      # AI model integration
-│   ├── gameManager.js      # Game coordination
-│   ├── database.js         # MySQL connection
+│   ├── gameManager.js      # Game coordination with cleanup
+│   ├── database.js         # MySQL connection with optimization
 │   ├── gameStats.js        # Statistics tracking
 │   ├── discordPermissions.js # Permission system
 │   ├── rivalManager.js     # Rival bot management
+│   ├── giftManager.js      # Gifting system with validation
+│   ├── inventoryManager.js # Inventory tracking
+│   ├── security.js         # Security framework
+│   ├── secureLogger.js     # Secure logging with sanitization
+│   ├── cryptoRandom.js     # Cryptographically secure random
+│   ├── pagination.js       # Enhanced pagination system
 │   └── ...                 # Other utility modules
 ├── config.js               # Configuration management
 ├── index.js               # Main bot entry point
-└── schema.json            # Database schema (v9)
+└── schema.json            # Database schema (v10)
 ```
 
 ## Development

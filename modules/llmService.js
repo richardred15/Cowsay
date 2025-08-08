@@ -1,5 +1,13 @@
-const toolManager = require('./toolManager');
-const { getSystemPrompt, LLM_PROVIDER, MAX_TOKENS, MAX_RAW_ANSWER_LENGTH, MAX_ANSWER_LENGTH, TRUNCATION_TEXT } = require('../config');
+const toolManager = require("./toolManager");
+const {
+    getSystemPrompt,
+    LLM_PROVIDER,
+    MAX_TOKENS,
+    MAX_RAW_ANSWER_LENGTH,
+    MAX_ANSWER_LENGTH,
+    TRUNCATION_TEXT,
+} = require("../config");
+const Logger = require("./logger");
 
 class LLMService {
     constructor(llmProvider) {
@@ -12,8 +20,11 @@ class LLMService {
             defaultOptions.tools = [toolManager.getAnimalSayTool()];
             defaultOptions.tool_choice = "auto";
         }
-        
-        const completion = await this.llmProvider.createCompletion(messages, { ...defaultOptions, ...options });
+
+        const completion = await this.llmProvider.createCompletion(messages, {
+            ...defaultOptions,
+            ...options,
+        });
         return await this.processCompletion(completion);
     }
 
@@ -26,14 +37,21 @@ class LLMService {
                 if (toolCall.function.name === "animalsay") {
                     try {
                         const args = JSON.parse(toolCall.function.arguments);
-                        const asciiArt = await toolManager.handleAnimalSay(args.animal, args.message);
+                        const asciiArt = await toolManager.handleAnimalSay(
+                            args.animal,
+                            args.message
+                        );
                         answer += `\n\`\`\`\n${asciiArt}\n\`\`\`\n`;
                     } catch (error) {
                         console.error("Tool call error:", error);
                         answer += "\n[ASCII art generation failed]";
                     }
+                } else {
+                    Logger.debug(`Tool call: ${choice?.message?.tool_calls}`);
                 }
             }
+        } else {
+            Logger.debug(`Tool call: ${choice?.message?.tool_calls}`);
         }
 
         return answer || "Sorry, I couldn't generate an answer.";
@@ -48,7 +66,7 @@ class LLMService {
         if (answer.length > maxAnswerLength) {
             return answer.slice(0, maxAnswerLength) + TRUNCATION_TEXT;
         }
-        
+
         return answer;
     }
 

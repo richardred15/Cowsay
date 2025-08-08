@@ -1,5 +1,7 @@
 const database = require('./database');
 const currencyManager = require('./currencyManager');
+const inventoryManager = require('./inventoryManager');
+const giftManager = require('./giftManager');
 const Logger = require('./logger');
 
 class ShopManager {
@@ -66,11 +68,8 @@ class ShopManager {
         try {
             await this.initializeShop();
             
-            const rows = await database.query(
-                'SELECT item_id FROM user_purchases WHERE user_id = ?',
-                [userId]
-            );
-            return (rows || []).map(row => row.item_id);
+            const inventory = await inventoryManager.getUserInventory(userId);
+            return inventory.map(item => item.item_id);
         } catch (error) {
             Logger.error('Failed to get user purchases:', error);
             return [];
@@ -91,11 +90,8 @@ class ShopManager {
 
             // Check if already purchased (only for characters)
             if (item.category === 'character') {
-                const purchases = await database.query(
-                    'SELECT 1 FROM user_purchases WHERE user_id = ? AND item_id = ?',
-                    [userId, itemId]
-                );
-                if (purchases && purchases.length > 0) {
+                const owns = await inventoryManager.hasItem(userId, itemId);
+                if (owns) {
                     return { success: false, message: 'You already own this character!' };
                 }
             }
@@ -114,11 +110,8 @@ class ShopManager {
             
             // Handle different item types
             if (item.category === 'character') {
-                // Add character to purchases
-                await database.query(
-                    'INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?)',
-                    [userId, itemId]
-                );
+                // Add character to inventory
+                await inventoryManager.addToInventory(userId, itemId, 'purchase');
             } else if (item.category === 'boost') {
                 // Activate boost immediately
                 if (itemId === 'daily_boost') {
@@ -143,15 +136,27 @@ class ShopManager {
     async hasItem(userId, itemId) {
         try {
             await this.initializeShop();
-            
-            const rows = await database.query(
-                'SELECT 1 FROM user_purchases WHERE user_id = ? AND item_id = ?',
-                [userId, itemId]
-            );
-            return rows && rows.length > 0;
+            return await inventoryManager.hasItem(userId, itemId);
         } catch (error) {
             Logger.error('Failed to check item ownership:', error);
             return false;
+        }
+    }
+
+    async getShopWithGiftPricing(userId) {
+        try {
+            const items = await this.getShopItems();
+            const userInventory = await inventoryManager.getUserInventory(userId);
+            const ownedItems = new Set(userInventory.map(item => item.item_id));
+
+            return items.map(item => ({
+                ...item,
+                owned: ownedItems.has(item.item_id),
+                gift_cost: giftManager.calculateGiftCost(item.price)
+            }));
+        } catch (error) {
+            Logger.error('Failed to get shop with gift pricing:', error);
+            return [];
         }
     }
 }

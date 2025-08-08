@@ -3,17 +3,26 @@ const SecurityUtils = require('./security');
 
 class Logger {
     static log(level, message, data = null) {
-        const timestamp = new Date().toISOString();
-        const sanitizedMessage = SecurityUtils.sanitizeForLog(message);
-        
-        let logEntry = `[${timestamp}] ${level.toUpperCase()}: ${sanitizedMessage}`;
-        
-        if (data) {
-            const sanitizedData = SecurityUtils.sanitizeForLog(JSON.stringify(data));
-            logEntry += ` | Data: ${sanitizedData}`;
+        try {
+            const timestamp = new Date().toISOString();
+            const sanitizedMessage = SecurityUtils.sanitizeForLog(message);
+            
+            let logEntry = `[${timestamp}] ${level.toUpperCase()}: ${sanitizedMessage}`;
+            
+            if (data) {
+                try {
+                    const sanitizedData = SecurityUtils.sanitizeForLog(JSON.stringify(data));
+                    logEntry += ` | Data: ${sanitizedData}`;
+                } catch (jsonError) {
+                    logEntry += ` | Data: [JSON stringify failed: ${jsonError.message}]`;
+                }
+            }
+            
+            console.log(logEntry);
+        } catch (error) {
+            // Fallback logging without sanitization if all else fails
+            console.log(`[${new Date().toISOString()}] LOGGER_ERROR: ${error.message} | Original: ${message}`);
         }
-        
-        console.log(logEntry);
     }
 
     static info(message, data) {

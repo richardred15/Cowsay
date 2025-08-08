@@ -8,24 +8,38 @@ class MemberCache {
         this.updateInterval = 60 * 60 * 1000; // 1 hour
     }
 
-    async updateCache(guild) {
+    async updateCache(guild, requestingUser = null) {
         try {
+            // Only allow authorized users to trigger cache updates
+            if (requestingUser) {
+                const authorized = await SecurityUtils.validateAuthorization(
+                    { member: requestingUser, guild }, 
+                    'moderator'
+                );
+                if (!authorized) {
+                    Logger.error('Unauthorized member cache update attempt');
+                    return false;
+                }
+            }
+            
             Logger.info('Updating member cache');
             const members = await guild.members.fetch();
             this.cache.clear();
             
             let count = 0;
-            members.forEach(member => {
-                if (count < 10000) { // Prevent potential DoS from large member lists
-                    this.cache.set(member.user.username.toLowerCase(), member.displayName || member.user.username);
-                    count++;
-                }
-            });
+            const maxMembers = Math.min(10000, members.size); // Limit iterations
+            for (const [, member] of members) {
+                if (count >= maxMembers) break;
+                this.cache.set(member.user.username.toLowerCase(), member.displayName || member.user.username);
+                count++;
+            }
             
             this.lastUpdate = Date.now();
             Logger.info(`Member cache updated: ${this.cache.size} members`);
+            return true;
         } catch (error) {
-            Logger.error('Failed to update member cache', error.message);
+            Logger.error('Failed to update member cache', error.message.substring(0, 100));
+            return false;
         }
     }
 

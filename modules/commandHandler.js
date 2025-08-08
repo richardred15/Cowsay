@@ -63,6 +63,20 @@ class CommandHandler {
                 ]
             },
             {
+                title: '🎒 Inventory & Gifts',
+                commands: [
+                    '`!cowsay inventory` - View your complete inventory',
+                    '`!cowsay inventory characters` - View owned characters only',
+                    '`!cowsay inventory boosts` - View owned boosts only',
+                    '`!cowsay gift @user <item> [message]` - Send a gift',
+                    '`!cowsay gifts sent` - View gifts you\'ve sent',
+                    '`!cowsay gifts received` - View gifts you\'ve received',
+                    '`!cowsay wishlist add <item>` - Add item to wishlist',
+                    '`!cowsay wishlist remove <item>` - Remove from wishlist',
+                    '`!cowsay wishlist @user` - View someone\'s wishlist'
+                ]
+            },
+            {
                 title: '📊 Statistics',
                 commands: [
                     '`!cowsay stats` - Your personal game statistics',
