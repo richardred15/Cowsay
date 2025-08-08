@@ -88,10 +88,29 @@ describe('Command Integration Tests', () => {
       // Ensure user exists first
       await currencyManager.createUser(userId);
       
+      // Debug: Check user exists
+      const [userExists] = await currencyManager.database.query(
+        'SELECT user_id, balance FROM user_currency WHERE user_id = ?',
+        [userId]
+      );
+      console.log(`[TEST DEBUG] User exists check:`, userExists);
+      
       const success = await currencyManager.activateDailyBoost(userId);
+      console.log(`[TEST DEBUG] Daily boost activation result: ${success}`);
+      
+      if (!success) {
+        // Debug what went wrong
+        const [userState] = await currencyManager.database.query(
+          'SELECT * FROM user_currency WHERE user_id = ?',
+          [userId]
+        );
+        console.log(`[TEST DEBUG] User state after failed activation:`, userState);
+      }
+      
       expect(success).toBe(true);
       
       const hasBoost = await currencyManager.hasDailyBoost(userId);
+      console.log(`[TEST DEBUG] Has boost check: ${hasBoost}`);
       expect(hasBoost).toBe(true);
     });
 

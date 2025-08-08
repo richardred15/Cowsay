@@ -79,7 +79,16 @@ class PerformanceRunner {
   }
 
   async generateReport() {
-    const reportPath = path.join(__dirname, 'reports', 'performance.json');
+    const reportsDir = path.join(__dirname, 'reports');
+    const reportPath = path.join(reportsDir, 'performance.json');
+    
+    // Ensure reports directory exists
+    try {
+      await fs.mkdir(reportsDir, { recursive: true });
+    } catch (error) {
+      // Directory might already exist, ignore error
+    }
+    
     await fs.writeFile(reportPath, JSON.stringify(this.results, null, 2));
     
     console.log('\n📊 Performance Summary:');
