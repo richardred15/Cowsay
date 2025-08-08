@@ -31,13 +31,13 @@ describe('SQL Injection Prevention', () => {
     const currencyManager = require('../../modules/currencyManager');
     
     for (const maliciousInput of maliciousInputs) {
-      // Test getUserBalance with malicious user ID
-      const balance = await currencyManager.getUserBalance(maliciousInput);
+      // Test getBalance with malicious user ID
+      const balance = await currencyManager.getBalance(maliciousInput);
       expect(balance).toBe(1000); // Default balance, not affected by injection
       
-      // Test addCoins with malicious user ID
+      // Test addBalance with malicious user ID
       await expect(
-        currencyManager.addCoins(maliciousInput, 100, 'test')
+        currencyManager.addBalance(maliciousInput, 100)
       ).resolves.not.toThrow();
       
       // Verify database integrity
@@ -69,7 +69,7 @@ describe('SQL Injection Prevention', () => {
     for (const maliciousInput of maliciousInputs) {
       // Test admin functions with malicious input
       await expect(
-        currencyManager.addCoins(maliciousInput, 100, maliciousInput)
+        currencyManager.adminAddCoins(maliciousInput, 100, maliciousInput)
       ).resolves.not.toThrow();
       
       // Verify reason field doesn't execute as SQL
