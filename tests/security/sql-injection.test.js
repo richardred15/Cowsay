@@ -95,6 +95,16 @@ describe('SQL Injection Prevention', () => {
     console.log('DB transaction count:', dbTransactions.length);
     console.log('DB transactions:', dbTransactions);
     
+    // Force debug info into test failure if needed
+    if (baselineTransactions.length === 0) {
+      throw new Error(`Transaction test setup failed:\n` +
+        `awardCoins result: ${JSON.stringify(awardResult)}\n` +
+        `User balance: ${balance}\n` +
+        `Transaction history length: ${baselineTransactions.length}\n` +
+        `DB transaction count: ${dbTransactions.length}\n` +
+        `DB transactions: ${JSON.stringify(dbTransactions)}`);
+    }
+    
     expect(baselineTransactions.length).toBeGreaterThan(0); // Ensure test setup worked
     
     for (const maliciousInput of maliciousInputs) {
