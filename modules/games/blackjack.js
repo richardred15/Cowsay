@@ -161,7 +161,9 @@ class Blackjack {
                         stand: false,
                     },
                 ],
-                true
+                true,
+                null,
+                interaction.guild?.id
             );
 
             gameData.betAmount = betAmount;
@@ -687,7 +689,8 @@ class Blackjack {
         const gameData = this.createGameData(
             players,
             false,
-            lobby.isDealer ? lobby.creator : null
+            lobby.isDealer ? lobby.creator : null,
+            channel.guild?.id
         );
         gameData.bets = lobby.bets;
         gameManager.activeGames.set(gameKey, gameData);
@@ -719,7 +722,7 @@ class Blackjack {
 
         // Get or create persistent thread for this channel
         const thread = await this.getOrCreateGameThread(channel);
-        
+
         // Store thread info and send game message to thread
         gameData.threadId = thread.id;
         gameData.channelId = channel.id;
@@ -727,7 +730,7 @@ class Blackjack {
             embeds: [embed],
             components: buttons,
         });
-        
+
         // Find and update the lobby message with game table
         try {
             const messages = await channel.messages.fetch({ limit: 10 });
@@ -753,7 +756,7 @@ class Blackjack {
         }
     }
 
-    createGameData(players, isSinglePlayer, dealerId = null) {
+    createGameData(players, isSinglePlayer, dealerId = null, serverId = null) {
         return {
             type: "blackjack",
             phase: "playing",
@@ -766,7 +769,7 @@ class Blackjack {
             dealerId,
             gameOver: false,
             startTime: Date.now(),
-            serverId: null,
+            serverId,
         };
     }
 
@@ -1135,8 +1138,11 @@ class Blackjack {
                 );
                 await mainMessage.edit({ embeds: [embed], components: [] });
 
-                // Acknowledge the interaction
-                await interaction.deferUpdate();
+                // Update the interaction to show current state
+                await interaction.update({
+                    embeds: [embed],
+                    components: buttons,
+                });
             } catch (error) {
                 console.log("Could not update thread/main message");
                 await interaction.update({
@@ -1586,44 +1592,54 @@ class Blackjack {
         try {
             // Check database for existing thread
             const existing = await database.query(
-                'SELECT thread_id FROM channel_threads WHERE channel_id = ? AND game_type = ?',
-                [channel.id, 'blackjack']
+                "SELECT thread_id FROM channel_threads WHERE channel_id = ? AND game_type = ?",
+                [channel.id, "blackjack"]
             );
-            
+
             if (existing && existing.length > 0) {
                 try {
                     // Try to fetch existing thread
-                    const thread = await channel.client.channels.fetch(existing[0].thread_id);
+                    const thread = await channel.client.channels.fetch(
+                        existing[0].thread_id
+                    );
                     if (thread && !thread.archived) {
                         // Update last_used timestamp
                         await database.query(
-                            'UPDATE channel_threads SET last_used = CURRENT_TIMESTAMP WHERE channel_id = ?',
+                            "UPDATE channel_threads SET last_used = CURRENT_TIMESTAMP WHERE channel_id = ?",
                             [channel.id]
                         );
                         return thread;
                     }
                 } catch (error) {
                     // Thread doesn't exist anymore, remove from database
-                    await database.query('DELETE FROM channel_threads WHERE channel_id = ?', [channel.id]);
+                    await database.query(
+                        "DELETE FROM channel_threads WHERE channel_id = ?",
+                        [channel.id]
+                    );
                 }
             }
-            
+
             // Create new thread and persist
-            const gameMessage = await channel.send({ content: "🃏 **Blackjack Games Thread**" });
+            const gameMessage = await channel.send({
+                content: "🃏 **Blackjack Games Thread**",
+            });
             const thread = await gameMessage.startThread({
                 name: `🃏 Blackjack Games`,
-                autoArchiveDuration: 1440 // 24 hours
+                autoArchiveDuration: 1440, // 24 hours
             });
-            
+
             await database.query(
-                'INSERT INTO channel_threads (channel_id, thread_id, thread_name, game_type) VALUES (?, ?, ?, ?)',
-                [channel.id, thread.id, thread.name, 'blackjack']
+                "INSERT INTO channel_threads (channel_id, thread_id, thread_name, game_type) VALUES (?, ?, ?, ?)",
+                [channel.id, thread.id, thread.name, "blackjack"]
             );
-            
+
             return thread;
         } catch (error) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.error('Error managing game thread', { error: error.message, channelId: channel.id });
+            const secureLogger = require("../secureLogger");
+            secureLogger.error("Error managing game thread", {
+                error: error.message,
+                channelId: channel.id,
+            });
             throw error;
         }
     }
@@ -1652,11 +1668,11 @@ class Blackjack {
             }
 
             const outcomeData = {
-                server_id: gameData.serverId || "unknown",
+                server_id: gameData.serverId,
                 game_type: "blackjack",
                 player1_id: player.id,
                 player1_name: player.name,
-                player2_id: "dealer",
+                player2_id: "ai_player",
                 player2_name: "Dealer",
                 winner_id: winnerId,
                 game_duration: gameData.startTime

@@ -1,22 +1,42 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const database = require('../database');
-const Logger = require('../logger');
+const {
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    MessageFlags,
+} = require("discord.js");
+const database = require("../database");
+const Logger = require("../logger");
 
 class Balatro {
     constructor() {
         this.activeGames = new Map();
-        this.suits = ['♠', '♥', '♦', '♣'];
-        this.ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        this.suits = ["♠", "♥", "♦", "♣"];
+        this.ranks = [
+            "A",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "J",
+            "Q",
+            "K",
+        ];
         this.blinds = {
             1: { small: 300, big: 800, boss: 2000 },
             2: { small: 450, big: 1200, boss: 3000 },
-            3: { small: 600, big: 1600, boss: 4000 }
+            3: { small: 600, big: 1600, boss: 4000 },
         };
     }
 
     async start(interaction) {
         const gameId = `balatro_${interaction.user.id}_${Date.now()}`;
-        
+
         try {
             // Create new game state
             const gameData = {
@@ -30,12 +50,12 @@ class Balatro {
                 currentHand: this.dealHand(),
                 deck: this.createDeck(),
                 jokers: [],
-                blindData: { type: 'small', requirement: 300 },
+                blindData: { type: "small", requirement: 300 },
                 selectedCards: [],
-                phase: 'playing',
+                phase: "playing",
                 startTime: Date.now(),
                 serverId: interaction.guild?.id,
-                totalHands: 0
+                totalHands: 0,
             };
 
             // Save to database
@@ -43,15 +63,18 @@ class Balatro {
             this.activeGames.set(gameId, gameData);
 
             await interaction.reply({
-                content: '🃏 Starting Balatro game...',
-                flags: MessageFlags.Ephemeral
+                content: "🃏 Starting Balatro game...",
+                flags: MessageFlags.Ephemeral,
             });
 
             await this.sendGameEmbed(interaction, gameData);
             return { gameKey: gameId, gameData };
         } catch (error) {
-            Logger.error('Failed to start Balatro game', error.message);
-            await interaction.reply({ content: '❌ Failed to start Balatro game!', flags: MessageFlags.Ephemeral });
+            Logger.error("Failed to start Balatro game", error.message);
+            await interaction.reply({
+                content: "❌ Failed to start Balatro game!",
+                flags: MessageFlags.Ephemeral,
+            });
             return null;
         }
     }
@@ -90,7 +113,7 @@ class Balatro {
 
         const followUp = await interaction.followUp({
             embeds: [embed],
-            components
+            components,
         });
 
         gameData.messageId = followUp.id;
@@ -98,46 +121,60 @@ class Balatro {
     }
 
     createGameEmbed(gameData) {
-        const blindInfo = this.getBlindInfo(gameData.ante, gameData.blindData.type);
-        
-        let description = `**Ante ${gameData.ante}** - ${gameData.blindData.type.toUpperCase()} BLIND\n`;
+        const blindInfo = this.getBlindInfo(
+            gameData.ante,
+            gameData.blindData.type
+        );
+
+        let description = `**Ante ${
+            gameData.ante
+        }** - ${gameData.blindData.type.toUpperCase()} BLIND\n`;
         description += `💰 Chips: ${gameData.chips} / ${blindInfo.requirement}\n`;
         description += `🃏 Hands: ${gameData.handsRemaining} | 🗑️ Discards: ${gameData.discardsRemaining}\n\n`;
-        
-        description += '**Your Hand:**\n';
+
+        description += "**Your Hand:**\n";
         gameData.currentHand.forEach((card, index) => {
-            const selected = gameData.selectedCards.includes(index) ? '**' : '';
+            const selected = gameData.selectedCards.includes(index) ? "**" : "";
             description += `${selected}${card.rank}${card.suit}${selected} `;
         });
 
         if (gameData.selectedCards.length > 0) {
             description += `\n\n**Selected:** ${gameData.selectedCards.length} cards`;
-            const handType = this.evaluateHand(gameData.selectedCards.map(i => gameData.currentHand[i]));
-            if (handType.name !== 'High Card' || gameData.selectedCards.length >= 5) {
+            const handType = this.evaluateHand(
+                gameData.selectedCards.map((i) => gameData.currentHand[i])
+            );
+            if (
+                handType.name !== "High Card" ||
+                gameData.selectedCards.length >= 5
+            ) {
                 description += ` (${handType.name})`;
             }
         }
 
         return new EmbedBuilder()
-            .setTitle('🃏 Balatro')
+            .setTitle("🃏 Balatro")
             .setDescription(description)
-            .setColor(0x8B4513)
-            .setFooter({ text: `Game ID: ${gameData.id.split('_')[2]}` });
+            .setColor(0x8b4513)
+            .setFooter({ text: `Game ID: ${gameData.id.split("_")[2]}` });
     }
 
     createGameComponents(gameData) {
         const components = [];
-        
+
         // Card selection buttons (2 rows of 4)
         const cardRow1 = new ActionRowBuilder();
         const cardRow2 = new ActionRowBuilder();
-        
+
         gameData.currentHand.forEach((card, index) => {
             const button = new ButtonBuilder()
                 .setCustomId(`bal_card_${index}`)
                 .setLabel(`${card.rank}${card.suit}`)
-                .setStyle(gameData.selectedCards.includes(index) ? ButtonStyle.Primary : ButtonStyle.Secondary);
-            
+                .setStyle(
+                    gameData.selectedCards.includes(index)
+                        ? ButtonStyle.Primary
+                        : ButtonStyle.Secondary
+                );
+
             if (index < 4) {
                 cardRow1.addComponents(button);
             } else {
@@ -150,23 +187,26 @@ class Balatro {
         // Action buttons
         const actionRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId('bal_play')
-                .setLabel('Play Hand')
+                .setCustomId("bal_play")
+                .setLabel("Play Hand")
                 .setStyle(ButtonStyle.Success)
                 .setDisabled(gameData.selectedCards.length === 0),
             new ButtonBuilder()
-                .setCustomId('bal_discard')
-                .setLabel('Discard')
+                .setCustomId("bal_discard")
+                .setLabel("Discard")
                 .setStyle(ButtonStyle.Danger)
-                .setDisabled(gameData.selectedCards.length === 0 || gameData.discardsRemaining === 0),
+                .setDisabled(
+                    gameData.selectedCards.length === 0 ||
+                        gameData.discardsRemaining === 0
+                ),
             new ButtonBuilder()
-                .setCustomId('bal_shop')
-                .setLabel('Shop')
+                .setCustomId("bal_shop")
+                .setLabel("Shop")
                 .setStyle(ButtonStyle.Secondary)
-                .setDisabled(gameData.phase !== 'shop'),
+                .setDisabled(gameData.phase !== "shop"),
             new ButtonBuilder()
-                .setCustomId('bal_quit')
-                .setLabel('Quit')
+                .setCustomId("bal_quit")
+                .setLabel("Quit")
                 .setStyle(ButtonStyle.Secondary)
         );
 
@@ -175,16 +215,22 @@ class Balatro {
     }
 
     async handleInteraction(interaction, gameData, gameKey, gameManager) {
-        if (!interaction.customId.startsWith('bal_')) return false;
+        if (!interaction.customId.startsWith("bal_")) return false;
 
         const game = await this.getGameForUser(interaction.user.id, gameData);
         if (!game) {
-            await interaction.reply({ content: '❌ No active Balatro game found!', flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: "❌ No active Balatro game found!",
+                flags: MessageFlags.Ephemeral,
+            });
             return true;
         }
 
         if (game.userId !== interaction.user.id) {
-            await interaction.reply({ content: '❌ This is not your game!', flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: "❌ This is not your game!",
+                flags: MessageFlags.Ephemeral,
+            });
             return true;
         }
 
@@ -192,8 +238,11 @@ class Balatro {
             await this.routeInteraction(interaction, game, gameManager);
             return true;
         } catch (error) {
-            Logger.error('Balatro interaction error', error.message);
-            await interaction.reply({ content: '❌ Game error occurred!', flags: MessageFlags.Ephemeral });
+            Logger.error("Balatro interaction error", error.message);
+            await interaction.reply({
+                content: "❌ Game error occurred!",
+                flags: MessageFlags.Ephemeral,
+            });
             return true;
         }
     }
@@ -211,24 +260,26 @@ class Balatro {
     }
 
     async routeInteraction(interaction, game, gameManager) {
-        if (interaction.customId.startsWith('bal_card_')) {
+        if (interaction.customId.startsWith("bal_card_")) {
             await this.handleCardSelection(interaction, game);
-        } else if (interaction.customId === 'bal_play') {
+        } else if (interaction.customId === "bal_play") {
             await this.handlePlayHand(interaction, game);
-        } else if (interaction.customId === 'bal_discard') {
+        } else if (interaction.customId === "bal_discard") {
             await this.handleDiscard(interaction, game);
-        } else if (interaction.customId === 'bal_shop') {
+        } else if (interaction.customId === "bal_shop") {
             await this.handleShop(interaction, game);
-        } else if (interaction.customId === 'bal_quit') {
+        } else if (interaction.customId === "bal_quit") {
             await this.handleQuit(interaction, game, gameManager);
         }
     }
 
     async handleCardSelection(interaction, game) {
-        const cardIndex = parseInt(interaction.customId.split('_')[2]);
-        
+        const cardIndex = parseInt(interaction.customId.split("_")[2]);
+
         if (game.selectedCards.includes(cardIndex)) {
-            game.selectedCards = game.selectedCards.filter(i => i !== cardIndex);
+            game.selectedCards = game.selectedCards.filter(
+                (i) => i !== cardIndex
+            );
         } else if (game.selectedCards.length < 5) {
             game.selectedCards.push(cardIndex);
         }
@@ -238,29 +289,34 @@ class Balatro {
 
     async handlePlayHand(interaction, game) {
         if (game.selectedCards.length === 0) {
-            await interaction.reply({ content: '❌ Select cards first!', flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: "❌ Select cards first!",
+                flags: MessageFlags.Ephemeral,
+            });
             return;
         }
 
-        const selectedCards = game.selectedCards.map(i => game.currentHand[i]);
+        const selectedCards = game.selectedCards.map(
+            (i) => game.currentHand[i]
+        );
         const handResult = this.evaluateHand(selectedCards);
         const score = this.calculateScore(handResult, game.jokers);
-        
+
         const blindInfo = this.getBlindInfo(game.ante, game.blindData.type);
         game.chips += score;
         const success = game.chips >= blindInfo.requirement;
 
         if (success) {
             await this.advanceBlind(game);
-            await interaction.reply({ 
-                content: `✅ ${handResult.name}! +${score} chips! Beat the blind with ${game.chips} total!`, 
-                flags: MessageFlags.Ephemeral
+            await interaction.reply({
+                content: `✅ ${handResult.name}! +${score} chips! Beat the blind with ${game.chips} total!`,
+                flags: MessageFlags.Ephemeral,
             });
         } else {
             game.handsRemaining--;
-            await interaction.reply({ 
-                content: `${handResult.name} - +${score} chips (${game.chips}/${blindInfo.requirement})`, 
-                flags: MessageFlags.Ephemeral
+            await interaction.reply({
+                content: `${handResult.name} - +${score} chips (${game.chips}/${blindInfo.requirement})`,
+                flags: MessageFlags.Ephemeral,
             });
         }
 
@@ -271,22 +327,25 @@ class Balatro {
 
         // Remove played cards and deal new ones
         game.selectedCards.sort((a, b) => b - a); // Sort descending to avoid index issues
-        game.selectedCards.forEach(index => {
+        game.selectedCards.forEach((index) => {
             game.currentHand.splice(index, 1);
         });
-        
+
         // Deal new cards to fill hand back to 8
         while (game.currentHand.length < 8 && game.deck.length > 0) {
             game.currentHand.push(game.deck.pop());
         }
-        
+
         game.selectedCards = [];
         await this.updateGameEmbed(interaction, game);
     }
 
     async handleDiscard(interaction, game) {
         if (game.selectedCards.length === 0 || game.discardsRemaining <= 0) {
-            await interaction.reply({ content: '❌ Cannot discard!', flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: "❌ Cannot discard!",
+                flags: MessageFlags.Ephemeral,
+            });
             return;
         }
 
@@ -297,71 +356,108 @@ class Balatro {
         }
 
         game.selectedCards.sort((a, b) => b - a);
-        game.selectedCards.forEach(index => {
+        game.selectedCards.forEach((index) => {
             game.currentHand[index] = newCards.pop();
         });
 
         game.discardsRemaining--;
         game.selectedCards = [];
 
-        await interaction.reply({ content: '🗑️ Cards discarded!', flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+            content: "🗑️ Cards discarded!",
+            flags: MessageFlags.Ephemeral,
+        });
         await this.updateGameEmbed(interaction, game);
     }
 
     async handleShop(interaction, game) {
-        await interaction.reply({ content: '🛒 Shop coming soon!', flags: MessageFlags.Ephemeral });
+        await interaction.reply({
+            content: "🛒 Shop coming soon!",
+            flags: MessageFlags.Ephemeral,
+        });
     }
 
     async handleQuit(interaction, game, gameManager) {
         await this.deleteGame(game.id);
         gameManager.activeGames.delete(game.id);
         this.activeGames.delete(game.id);
-        
-        await interaction.reply({ content: '👋 Game ended!', flags: MessageFlags.Ephemeral });
+
+        await interaction.reply({
+            content: "👋 Game ended!",
+            flags: MessageFlags.Ephemeral,
+        });
         await interaction.message.edit({ components: [] });
     }
 
     evaluateHand(cards) {
-        if (cards.length === 0) return { name: 'High Card', multiplier: 1, chips: 5 };
-        
-        const ranks = cards.map(c => c.rank);
-        const suits = cards.map(c => c.suit);
-        
+        if (cards.length === 0)
+            return { name: "High Card", multiplier: 1, chips: 5 };
+
+        const ranks = cards.map((c) => c.rank);
+        const suits = cards.map((c) => c.suit);
+
         // Count ranks
         const rankCounts = {};
-        ranks.forEach(rank => rankCounts[rank] = (rankCounts[rank] || 0) + 1);
+        ranks.forEach(
+            (rank) => (rankCounts[rank] = (rankCounts[rank] || 0) + 1)
+        );
         const counts = Object.values(rankCounts).sort((a, b) => b - a);
-        
+
         // Check for flush
         const isFlush = suits.length >= 5 && new Set(suits).size === 1;
-        
+
         // Check for straight
-        const rankValues = { 'A': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13 };
-        const sortedValues = ranks.map(r => rankValues[r]).sort((a, b) => a - b);
-        const isStraight = sortedValues.length >= 5 && sortedValues.every((val, i) => i === 0 || val === sortedValues[i-1] + 1);
-        
-        if (isStraight && isFlush) return { name: 'Straight Flush', multiplier: 8, chips: 100 };
-        if (counts[0] === 4) return { name: 'Four of a Kind', multiplier: 7, chips: 60 };
-        if (counts[0] === 3 && counts[1] === 2) return { name: 'Full House', multiplier: 4, chips: 40 };
-        if (isFlush) return { name: 'Flush', multiplier: 4, chips: 35 };
-        if (isStraight) return { name: 'Straight', multiplier: 4, chips: 30 };
-        if (counts[0] === 3) return { name: 'Three of a Kind', multiplier: 3, chips: 30 };
-        if (counts[0] === 2 && counts[1] === 2) return { name: 'Two Pair', multiplier: 2, chips: 20 };
-        if (counts[0] === 2) return { name: 'Pair', multiplier: 2, chips: 10 };
-        
-        return { name: 'High Card', multiplier: 1, chips: 5 };
+        const rankValues = {
+            A: 1,
+            2: 2,
+            3: 3,
+            4: 4,
+            5: 5,
+            6: 6,
+            7: 7,
+            8: 8,
+            9: 9,
+            10: 10,
+            J: 11,
+            Q: 12,
+            K: 13,
+        };
+        const sortedValues = ranks
+            .map((r) => rankValues[r])
+            .sort((a, b) => a - b);
+        const isStraight =
+            sortedValues.length >= 5 &&
+            sortedValues.every(
+                (val, i) => i === 0 || val === sortedValues[i - 1] + 1
+            );
+
+        if (isStraight && isFlush)
+            return { name: "Straight Flush", multiplier: 8, chips: 100 };
+        if (counts[0] === 4)
+            return { name: "Four of a Kind", multiplier: 7, chips: 60 };
+        if (counts[0] === 3 && counts[1] === 2)
+            return { name: "Full House", multiplier: 4, chips: 40 };
+        if (isFlush) return { name: "Flush", multiplier: 4, chips: 35 };
+        if (isStraight) return { name: "Straight", multiplier: 4, chips: 30 };
+        if (counts[0] === 3)
+            return { name: "Three of a Kind", multiplier: 3, chips: 30 };
+        if (counts[0] === 2 && counts[1] === 2)
+            return { name: "Two Pair", multiplier: 2, chips: 20 };
+        if (counts[0] === 2) return { name: "Pair", multiplier: 2, chips: 10 };
+
+        return { name: "High Card", multiplier: 1, chips: 5 };
     }
 
     calculateScore(handResult, jokers) {
         // In Balatro, scoring is (chips + bonus) × multiplier
         let chips = handResult.chips;
         let multiplier = handResult.multiplier;
-        
+
         // Add card values to chips
         chips += 50; // Base bonus for playing cards
-        
+
         // Apply joker effects here
-        
+
         return Math.floor(chips * multiplier);
     }
 
@@ -371,21 +467,21 @@ class Balatro {
     }
 
     async advanceBlind(game) {
-        if (game.blindData.type === 'small') {
-            game.blindData.type = 'big';
-        } else if (game.blindData.type === 'big') {
-            game.blindData.type = 'boss';
+        if (game.blindData.type === "small") {
+            game.blindData.type = "big";
+        } else if (game.blindData.type === "big") {
+            game.blindData.type = "boss";
         } else {
             game.ante++;
-            game.blindData.type = 'small';
+            game.blindData.type = "small";
             game.handsRemaining = 4;
             game.discardsRemaining = 3;
-            game.phase = 'shop';
-            
+            game.phase = "shop";
+
             // Check for high ante win condition
             if (game.ante > 8) {
-                await this.awardCoins(game, 'win');
-                this.recordGameOutcome(game, 'win');
+                await this.awardCoins(game, "win");
+                this.recordGameOutcome(game, "win");
             }
         }
         await this.saveGame(game);
@@ -393,18 +489,18 @@ class Balatro {
 
     async gameOver(interaction, game) {
         // Award coins and record game outcome
-        await this.awardCoins(game, 'loss');
-        this.recordGameOutcome(game, 'loss');
-        
+        await this.awardCoins(game, "loss");
+        this.recordGameOutcome(game, "loss");
+
         let description = `Final Score: Ante ${game.ante}\nTotal Chips: ${game.chips}`;
         if (game.participationReward) {
             description += `\n🪙 +${game.participationReward.awarded} coins for reaching Ante ${game.ante}!`;
         }
-        
+
         const embed = new EmbedBuilder()
-            .setTitle('🃏 Game Over!')
+            .setTitle("🃏 Game Over!")
             .setDescription(description)
-            .setColor(0xFF0000);
+            .setColor(0xff0000);
 
         await interaction.message.edit({ embeds: [embed], components: [] });
         await this.deleteGame(game.id);
@@ -414,7 +510,7 @@ class Balatro {
     async updateGameEmbed(interaction, game) {
         const embed = this.createGameEmbed(game);
         const components = this.createGameComponents(game);
-        
+
         try {
             await interaction.update({ embeds: [embed], components });
         } catch (error) {
@@ -433,30 +529,45 @@ class Balatro {
 
     async saveGame(gameData) {
         try {
-            const sql = 'INSERT INTO balatro_games (id, user_id, ante, chips, hands_remaining, discards_remaining, current_hand, deck, jokers, blind_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE ante=?, chips=?, hands_remaining=?, discards_remaining=?, current_hand=?, deck=?, jokers=?, blind_data=?';
-            
+            const sql =
+                "INSERT INTO balatro_games (id, user_id, ante, chips, hands_remaining, discards_remaining, current_hand, deck, jokers, blind_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE ante=?, chips=?, hands_remaining=?, discards_remaining=?, current_hand=?, deck=?, jokers=?, blind_data=?";
+
             await database.query(sql, [
-                gameData.id, gameData.userId, gameData.ante, gameData.chips,
-                gameData.handsRemaining, gameData.discardsRemaining,
-                JSON.stringify(gameData.currentHand), JSON.stringify(gameData.deck),
-                JSON.stringify(gameData.jokers), JSON.stringify(gameData.blindData),
-                gameData.ante, gameData.chips, gameData.handsRemaining, gameData.discardsRemaining,
-                JSON.stringify(gameData.currentHand), JSON.stringify(gameData.deck),
-                JSON.stringify(gameData.jokers), JSON.stringify(gameData.blindData)
+                gameData.id,
+                gameData.userId,
+                gameData.ante,
+                gameData.chips,
+                gameData.handsRemaining,
+                gameData.discardsRemaining,
+                JSON.stringify(gameData.currentHand),
+                JSON.stringify(gameData.deck),
+                JSON.stringify(gameData.jokers),
+                JSON.stringify(gameData.blindData),
+                gameData.ante,
+                gameData.chips,
+                gameData.handsRemaining,
+                gameData.discardsRemaining,
+                JSON.stringify(gameData.currentHand),
+                JSON.stringify(gameData.deck),
+                JSON.stringify(gameData.jokers),
+                JSON.stringify(gameData.blindData),
             ]);
         } catch (error) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.error('Failed to save Balatro game', { error: error.message, userId: gameData.userId });
+            const secureLogger = require("../secureLogger");
+            secureLogger.error("Failed to save Balatro game", {
+                error: error.message,
+                userId: gameData.userId,
+            });
             throw error;
         }
     }
 
     async loadGame(gameId) {
-        const sql = 'SELECT * FROM balatro_games WHERE id = ?';
+        const sql = "SELECT * FROM balatro_games WHERE id = ?";
         const rows = await database.query(sql, [gameId]);
-        
+
         if (rows.length === 0) return null;
-        
+
         const row = rows[0];
         return {
             id: row.id,
@@ -470,15 +581,15 @@ class Balatro {
             jokers: row.jokers || [],
             blindData: row.blind_data || {},
             selectedCards: [],
-            phase: 'playing'
+            phase: "playing",
         };
     }
 
     async loadUserGames(userId) {
-        const sql = 'SELECT * FROM balatro_games WHERE user_id = ?';
+        const sql = "SELECT * FROM balatro_games WHERE user_id = ?";
         const rows = await database.query(sql, [userId]);
-        
-        return rows.map(row => ({
+
+        return rows.map((row) => ({
             id: row.id,
             userId: row.user_id,
             ante: row.ante,
@@ -490,16 +601,16 @@ class Balatro {
             jokers: row.jokers || [],
             blindData: row.blind_data || {},
             selectedCards: [],
-            phase: 'playing'
+            phase: "playing",
         }));
     }
 
     async loadAllActiveGames() {
-        const sql = 'SELECT * FROM balatro_games';
+        const sql = "SELECT * FROM balatro_games";
         const rows = await database.query(sql);
-        
+
         let loaded = 0;
-        rows.forEach(row => {
+        rows.forEach((row) => {
             try {
                 const game = {
                     id: row.id,
@@ -513,61 +624,74 @@ class Balatro {
                     jokers: row.jokers || [],
                     blindData: row.blind_data || {},
                     selectedCards: [],
-                    phase: 'playing'
+                    phase: "playing",
                 };
                 this.activeGames.set(game.id, game);
                 loaded++;
             } catch (error) {
-                Logger.error(`Failed to load Balatro game ${row.id}`, error.message);
+                Logger.error(
+                    `Failed to load Balatro game ${row.id}`,
+                    error.message
+                );
             }
         });
-        
+
         Logger.info(`Loaded ${loaded} active Balatro games`);
     }
 
     async deleteGame(gameId) {
-        const sql = 'DELETE FROM balatro_games WHERE id = ?';
+        const sql = "DELETE FROM balatro_games WHERE id = ?";
         await database.query(sql, [gameId]);
     }
 
     async awardCoins(game, result) {
-        const currencyManager = require('../currencyManager');
-        
-        if (result === 'win') {
+        const currencyManager = require("../currencyManager");
+
+        if (result === "win") {
             // Perfect game bonus for high ante wins
             const baseReward = game.ante >= 8 ? 200 : 150; // +50 bonus for ante 8+
-            const winReward = await currencyManager.awardCoins(game.userId, baseReward, game.ante >= 8 ? 'Balatro perfect win' : 'Balatro win');
+            const winReward = await currencyManager.awardCoins(
+                game.userId,
+                baseReward,
+                game.ante >= 8 ? "Balatro perfect win" : "Balatro win"
+            );
             game.winReward = winReward;
         } else {
             // Progressive participation rewards based on ante reached
             const baseReward = Math.min(25 + (game.ante - 1) * 15, 150);
-            const participationReward = await currencyManager.awardCoins(game.userId, baseReward, 'Balatro participation');
+            const participationReward = await currencyManager.awardCoins(
+                game.userId,
+                baseReward,
+                "Balatro participation"
+            );
             game.participationReward = participationReward;
         }
     }
 
     recordGameOutcome(game, result) {
-        const gameStats = require('../gameStats');
-        
-        const winnerId = result === 'win' ? game.userId : 'game';
-        
+        const gameStats = require("../gameStats");
+
+        const winnerId = result === "win" ? game.userId : "game";
+
         const outcomeData = {
-            server_id: game.serverId || 'unknown',
-            game_type: 'balatro',
+            server_id: game.serverId || "unknown",
+            game_type: "balatro",
             player1_id: game.userId,
-            player1_name: game.userName || 'Player',
-            player2_id: 'game',
-            player2_name: 'Balatro',
+            player1_name: game.userName || "Player",
+            player2_id: "ai_player",
+            player2_name: "Balatro",
             winner_id: winnerId,
-            game_duration: game.startTime ? Math.floor((Date.now() - game.startTime) / 1000) : null,
+            game_duration: game.startTime
+                ? Math.floor((Date.now() - game.startTime) / 1000)
+                : null,
             final_score: {
                 ante_reached: game.ante,
                 final_chips: game.chips,
-                hands_played: game.totalHands || 0
+                hands_played: game.totalHands || 0,
             },
-            game_mode: 'single'
+            game_mode: "single",
         };
-        
+
         gameStats.recordOutcome(outcomeData);
     }
 }

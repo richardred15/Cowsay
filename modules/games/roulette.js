@@ -31,41 +31,41 @@ class Roulette {
             high: { payout: 1, name: "19-36" },
             straight: { payout: 35, name: "Single Number" },
         };
-        
+
         this.dealerMessages = {
             betting: [
                 "🎩 *The dealer adjusts his bow tie and spins the wheel*",
                 "🎰 'Place your bets, ladies and gentlemen!'",
                 "🎯 'The wheel is ready, who's feeling lucky tonight?'",
                 "🎲 *The dealer taps the table with his finger*",
-                "🎰 'Step right up, fortunes await!'"
+                "🎰 'Step right up, fortunes await!'",
             ],
             spinning: [
                 "🎲 *The dealer gives the wheel a confident spin*",
                 "🎰 'Round and round she goes...'",
                 "🎯 *The ball dances around the wheel*",
                 "🎩 'Let's see where fate takes us!'",
-                "🎰 *The dealer watches intently as the wheel spins*"
+                "🎰 *The dealer watches intently as the wheel spins*",
             ],
             results: [
                 "🎊 'We have our winners!' *tips hat*",
                 "🎩 *The dealer announces with a flourish*",
                 "🎰 'Another exciting round at the table!'",
                 "🎯 'Congratulations to our lucky players!'",
-                "🎲 *The dealer smiles and collects the chips*"
-            ]
+                "🎲 *The dealer smiles and collects the chips*",
+            ],
         };
     }
 
     getRandomDealerMessage(phase) {
         const messages = this.dealerMessages[phase];
-        const CryptoRandom = require('../cryptoRandom');
+        const CryptoRandom = require("../cryptoRandom");
         return messages[CryptoRandom.randomInt(0, messages.length - 1)];
     }
 
     async start(message) {
-        const dealerMessage = this.getRandomDealerMessage('betting');
-        
+        const dealerMessage = this.getRandomDealerMessage("betting");
+
         const embed = new EmbedBuilder()
             .setTitle("🎰 Roulette - Place Your Bets!")
             .setDescription(
@@ -336,8 +336,6 @@ class Roulette {
 
     async handleNumberBet(interaction, gameData, gameKey, gameManager) {
         const number = parseInt(interaction.customId.split("_")[2]);
-
-        // Show bet amount selection for this number
         const balance = await currencyManager.getBalance(interaction.user.id);
 
         const embed = new EmbedBuilder()
@@ -388,26 +386,38 @@ class Roulette {
     ) {
         const userId = interaction.user.id;
         const userName = interaction.user.displayName;
-        
-        console.log(`[ROULETTE DEBUG] ${userName} placing bet: ${betType} ${betAmount} coins${number ? ` on number ${number}` : ''}`);
-        
+
+        console.log(
+            `[ROULETTE DEBUG] ${userName} placing bet: ${betType} ${betAmount} coins${
+                number ? ` on number ${number}` : ""
+            }`
+        );
+
         const balanceBefore = await currencyManager.getBalance(userId);
-        console.log(`[ROULETTE DEBUG] ${userName} balance before bet: ${balanceBefore}`);
+        console.log(
+            `[ROULETTE DEBUG] ${userName} balance before bet: ${balanceBefore}`
+        );
 
         // Check if user can afford the bet
         const canAfford = await currencyManager.spendCoins(
             userId,
             betAmount,
-            `Roulette bet: ${betType}${number ? ` ${number}` : ''}`
+            `Roulette bet: ${betType}${number ? ` ${number}` : ""}`
         );
-        
+
         const balanceAfter = await currencyManager.getBalance(userId);
-        console.log(`[ROULETTE DEBUG] ${userName} balance after bet: ${balanceAfter}, spent: ${balanceBefore - balanceAfter}`);
-        
+        console.log(
+            `[ROULETTE DEBUG] ${userName} balance after bet: ${balanceAfter}, spent: ${
+                balanceBefore - balanceAfter
+            }`
+        );
+
         if (!canAfford) {
-            console.log(`[ROULETTE DEBUG] ${userName} could not afford bet of ${betAmount}`);
+            console.log(
+                `[ROULETTE DEBUG] ${userName} could not afford bet of ${betAmount}`
+            );
             await interaction.update({
-                content: "You don't have enough coins for this bet!",
+                content: "❌ You don't have enough coins for this bet!",
                 embeds: [],
                 components: [],
             });
@@ -459,12 +469,35 @@ class Roulette {
     }
 
     async spinWheel(interaction, gameData, gameManager, gameKey) {
+        // Check if any bets were placed
+        if (!gameData.players || gameData.players.size === 0) {
+            const embed = new EmbedBuilder()
+                .setTitle("🎰 Roulette - No Bets Placed")
+                .setDescription(
+                    "No bets were placed this round. Better luck next time!"
+                )
+                .setColor(0x808080);
+
+            try {
+                await interaction.editReply({
+                    embeds: [embed],
+                    components: [],
+                });
+            } catch (error) {
+                await interaction.followUp({ embeds: [embed] });
+            }
+
+            // Clean up
+            gameManager.activeGames.delete(gameKey);
+            return;
+        }
+
         // Generate winning number (0-36 for European roulette)
         const CryptoRandom = require("../cryptoRandom");
         const winningNumber = CryptoRandom.randomInt(0, 36); // 0-36 inclusive
 
         // Start animation
-        await this.spinAnimation(interaction, winningNumber);
+        await this.spinAnimation(interaction, winningNumber, gameData);
         console.log(`[ROULETTE] Animation finished, calculating payouts`);
 
         // Calculate payouts
@@ -484,7 +517,7 @@ class Roulette {
         console.log(`[ROULETTE] Game cleaned up`);
     }
 
-    async spinAnimation(interaction, winningNumber) {
+    async spinAnimation(interaction, winningNumber, gameData) {
         const winningIndex = this.wheelOrder.indexOf(winningNumber);
         const totalFrames = 25; // Fixed frame count for ~15-20 seconds
         const CryptoRandom = require("../cryptoRandom");
@@ -517,14 +550,22 @@ class Roulette {
             );
 
             const isLastFrame = frame === totalFrames - 1;
-            
+
             let description = display;
             if (frame === 0) {
                 // Add dealer message at start of spin
-                const dealerMessage = this.getRandomDealerMessage('spinning');
+                const dealerMessage = this.getRandomDealerMessage("spinning");
                 description = `${dealerMessage}\n\n${display}`;
             }
-            
+
+            // Add betting summary to all frames
+            const bettingSummary = this.generateBettingSummary(
+                gameData.players
+            );
+            if (bettingSummary) {
+                description += `\n\n**💰 Placed Bets:**\n${bettingSummary}`;
+            }
+
             const spinEmbed = new EmbedBuilder()
                 .setTitle(
                     isLastFrame
@@ -615,8 +656,10 @@ class Roulette {
     }
 
     async calculatePayouts(gameData, winningNumber) {
-        console.log(`[ROULETTE DEBUG] Starting payout calculation for winning number: ${winningNumber}`);
-        
+        console.log(
+            `[ROULETTE DEBUG] Starting payout calculation for winning number: ${winningNumber}`
+        );
+
         const results = {
             winners: [],
             losers: [],
@@ -624,10 +667,14 @@ class Roulette {
         };
 
         for (const [userId, player] of gameData.players) {
-            console.log(`[ROULETTE DEBUG] Processing player ${player.name} (${userId})`);
+            console.log(
+                `[ROULETTE DEBUG] Processing player ${player.name} (${userId})`
+            );
             console.log(`[ROULETTE DEBUG] Player bets:`, player.bets);
-            console.log(`[ROULETTE DEBUG] Player total bet: ${player.totalBet}`);
-            
+            console.log(
+                `[ROULETTE DEBUG] Player total bet: ${player.totalBet}`
+            );
+
             let playerWinnings = 0;
             let winningBets = [];
             let losingBets = [];
@@ -663,27 +710,35 @@ class Roulette {
                     const payout = bet.amount * (bet.payout + 1); // Include original bet
                     playerWinnings += payout;
                     winningBets.push({ ...bet, payout });
-                    console.log(`[ROULETTE DEBUG] BET WIN: ${bet.type} ${bet.amount} coins -> payout ${payout}`);
+                    console.log(
+                        `[ROULETTE DEBUG] BET WIN: ${bet.type} ${bet.amount} coins -> payout ${payout}`
+                    );
                 } else {
                     losingBets.push(bet);
-                    console.log(`[ROULETTE DEBUG] BET LOSE: ${bet.type} ${bet.amount} coins`);
+                    console.log(
+                        `[ROULETTE DEBUG] BET LOSE: ${bet.type} ${bet.amount} coins`
+                    );
                 }
             }
 
             // Calculate net result: total winnings minus total bet
             const netResult = playerWinnings - player.totalBet;
-            console.log(`[ROULETTE DEBUG] Player ${player.name}: winnings=${playerWinnings}, totalBet=${player.totalBet}, netResult=${netResult}`);
-            
+            console.log(
+                `[ROULETTE DEBUG] Player ${player.name}: winnings=${playerWinnings}, totalBet=${player.totalBet}, netResult=${netResult}`
+            );
+
             // Always award winnings if player won any bets
             if (playerWinnings > 0) {
-                console.log(`[ROULETTE DEBUG] Awarding ${playerWinnings} coins to ${player.name}`);
+                console.log(
+                    `[ROULETTE DEBUG] Awarding ${playerWinnings} coins to ${player.name}`
+                );
                 await currencyManager.awardCoins(
                     userId,
                     playerWinnings,
                     "Roulette winnings"
                 );
             }
-            
+
             // Handle win/loss categorization and streak logic
             if (netResult > 0) {
                 // Player made a net profit
@@ -697,11 +752,10 @@ class Roulette {
                 });
             } else {
                 // Player had net loss - record for streak/shield handling
-                console.log(`[ROULETTE DEBUG] Recording loss for ${player.name} (net result: ${netResult})`);
-                await currencyManager.recordLoss(
-                    userId,
-                    "Roulette loss"
+                console.log(
+                    `[ROULETTE DEBUG] Recording loss for ${player.name} (net result: ${netResult})`
                 );
+                await currencyManager.recordLoss(userId, "Roulette loss");
                 results.losers.push({
                     userId,
                     name: player.name,
@@ -741,7 +795,7 @@ class Roulette {
                 .setColor(0xffd700);
 
         // Add dealer message and winning number info
-        const dealerMessage = this.getRandomDealerMessage('results');
+        const dealerMessage = this.getRandomDealerMessage("results");
         embed.setDescription(
             embed.data.description +
                 `\n\n${dealerMessage}\n**Winning Number: ${color}${winningNumber} (${colorName})**`
@@ -829,7 +883,7 @@ class Roulette {
                     : playerResult.profit; // Use actual profit from results
                 const profitText =
                     totalProfit >= 0 ? `+${totalProfit}` : `${totalProfit}`;
-                
+
                 // Add celebration based on profit amount
                 let celebration = "";
                 if (totalProfit > 1000) {
@@ -845,7 +899,9 @@ class Roulette {
                 playerResults.push(
                     `**${
                         player.name
-                    }** (${profitText} coins)${celebration}:\n${betDetails.join("\n")}`
+                    }** (${profitText} coins)${celebration}:\n${betDetails.join(
+                        "\n"
+                    )}`
                 );
             }
         }
@@ -854,14 +910,6 @@ class Roulette {
             embed.addFields({
                 name: "📊 Detailed Results",
                 value: playerResults.join("\n\n"),
-                inline: false,
-            });
-        }
-
-        if (gameData.players.size === 0) {
-            embed.addFields({
-                name: "🎰 No Bets",
-                value: "No one placed any bets this round!",
                 inline: false,
             });
         }
@@ -935,9 +983,10 @@ class Roulette {
             );
 
             // Add dealer message for countdown updates
-            const dealerMessage = timeLeft <= 10 ? 
-                "🎯 'No more bets!' *waves hand dramatically*" :
-                this.getRandomDealerMessage('betting');
+            const dealerMessage =
+                timeLeft <= 10
+                    ? "🎯 'No more bets!' *waves hand dramatically*"
+                    : this.getRandomDealerMessage("betting");
 
             // Update embed with countdown
             const embed = new EmbedBuilder()
@@ -1096,13 +1145,13 @@ class Roulette {
                 : results.losers.find((l) => l.userId === userId);
 
             const outcomeData = {
-                server_id: gameData.serverId || "unknown",
+                server_id: gameData.serverId,
                 game_type: "roulette",
                 player1_id: userId,
                 player1_name: player.name,
-                player2_id: "house",
+                player2_id: "ai_player",
                 player2_name: "House",
-                winner_id: isWinner ? userId : "house",
+                winner_id: isWinner ? userId : "ai_player",
                 game_duration: Math.floor(
                     (Date.now() - gameData.startTime) / 1000
                 ),
