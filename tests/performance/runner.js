@@ -26,6 +26,7 @@ class PerformanceRunner {
       await this.runDatabasePerformance();
       await this.runCurrencyPerformance();
       await this.runGamePerformance();
+      await this.runRoulettePerformance();
       
       // Generate report
       await this.generateReport();
@@ -78,6 +79,14 @@ class PerformanceRunner {
     this.results.tests.games = await gameTests.run();
   }
 
+  async runRoulettePerformance() {
+    console.log('Running roulette performance tests...');
+    const RoulettePerformance = require('./roulette-performance');
+    const rouletteTests = new RoulettePerformance();
+    await rouletteTests.runTests();
+    this.results.tests.roulette = rouletteTests.results;
+  }
+
   async generateReport() {
     const reportsDir = path.join(__dirname, 'reports');
     const reportPath = path.join(reportsDir, 'performance.json');
@@ -95,6 +104,7 @@ class PerformanceRunner {
     console.log(`Database avg response: ${this.results.tests.database?.averageResponseTime || 'N/A'}ms`);
     console.log(`Currency throughput: ${this.results.tests.currency?.throughput || 'N/A'} ops/sec`);
     console.log(`Game memory usage: ${this.results.tests.games?.memoryUsage?.heapUsedMB || 'N/A'}MB`);
+    console.log(`Roulette avg payout calc: ${this.results.tests.roulette?.tests?.find(t => t.name === 'Payout Calculations (100 players)')?.avgTime?.toFixed(3) || 'N/A'}ms`);
     console.log(`Report saved to: ${reportPath}`);
   }
 }

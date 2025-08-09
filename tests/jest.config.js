@@ -6,6 +6,7 @@ module.exports = {
         "../modules/**/*.js",
         "../index.js",
         "!../modules/games/**/*.js", // Game logic tested via integration
+        "../modules/games/roulette.js", // Include roulette for unit testing
         "!../node_modules/**",
     ],
     setupFilesAfterEnv: ["<rootDir>/fixtures/test-setup.js"],
