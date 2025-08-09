@@ -1,22 +1,26 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const BaseGame = require('./baseGame');
+const gameRewards = require('./gameRewards');
+const gameStats = require('../gameStats');
 
-class TicTacToe {
+class TicTacToe extends BaseGame {
+    constructor() {
+        super('tictactoe');
+    }
+
     async start(message, opponent = null) {
         const userId = message.author.id;
         const gameKey = opponent ? `${userId}_${opponent.id}` : userId;
         
-        const gameData = {
-            type: "tictactoe",
+        const gameData = this.createBaseGameData(message.author, message.guild?.id, {
             board: Array(9).fill(null),
             currentPlayer: "X",
             gameOver: false,
             winner: null,
             isMultiplayer: !!opponent,
-            player1: { id: userId, name: message.author.displayName, symbol: "X" },
-            player2: opponent ? { id: opponent.id, name: opponent.displayName, symbol: "O" } : { name: "Cowsay", symbol: "O" },
-            startTime: Date.now(),
-            serverId: message.guild?.id
-        };
+            player1: { id: userId, name: this.sanitizePlayerName(message.author.displayName), symbol: "X" },
+            player2: opponent ? { id: opponent.id, name: this.sanitizePlayerName(opponent.displayName), symbol: "O" } : { name: "Cowsay", symbol: "O" },
+        });
 
         const embed = this.createEmbed(gameData);
         const buttons = this.createButtons(gameData);
@@ -204,29 +208,27 @@ class TicTacToe {
     }
 
     async awardCoins(gameData) {
-        const currencyManager = require('../currencyManager');
-        
         if (gameData.winner === 'X') {
             // Player 1 wins
-            const winReward = await currencyManager.awardCoins(gameData.player1.id, 30, 'Tic-Tac-Toe win');
+            const winReward = await gameRewards.awardGameReward(gameData.player1.id, this.gameType, 'win');
             gameData.winnerReward = winReward;
             
             // Participation for player 2 (if multiplayer)
             if (gameData.isMultiplayer) {
-                await currencyManager.awardCoins(gameData.player2.id, 5, 'Tic-Tac-Toe participation');
+                await gameRewards.awardGameReward(gameData.player2.id, this.gameType, 'participation');
             }
         } else if (gameData.winner === 'O' && gameData.isMultiplayer) {
             // Player 2 wins (multiplayer only)
-            const winReward = await currencyManager.awardCoins(gameData.player2.id, 30, 'Tic-Tac-Toe win');
+            const winReward = await gameRewards.awardGameReward(gameData.player2.id, this.gameType, 'win');
             gameData.winnerReward = winReward;
             
             // Participation for player 1
-            await currencyManager.awardCoins(gameData.player1.id, 5, 'Tic-Tac-Toe participation');
+            await gameRewards.awardGameReward(gameData.player1.id, this.gameType, 'participation');
         } else if (gameData.winner === null) {
             // Tie - both players get participation coins
-            await currencyManager.awardCoins(gameData.player1.id, 5, 'Tic-Tac-Toe participation');
+            await gameRewards.awardGameReward(gameData.player1.id, this.gameType, 'participation');
             if (gameData.isMultiplayer) {
-                await currencyManager.awardCoins(gameData.player2.id, 5, 'Tic-Tac-Toe participation');
+                await gameRewards.awardGameReward(gameData.player2.id, this.gameType, 'participation');
             }
             gameData.tieReward = 5;
         }
@@ -234,8 +236,6 @@ class TicTacToe {
     }
 
     recordGameOutcome(gameData) {
-        const gameStats = require('../gameStats');
-        
         let winnerId = null;
         if (gameData.winner === 'X') {
             winnerId = gameData.player1.id;
@@ -245,23 +245,25 @@ class TicTacToe {
             winnerId = 'tie';
         }
         
-        const outcomeData = {
-            server_id: gameData.serverId || 'unknown',
-            game_type: 'tictactoe',
-            player1_id: gameData.player1.id,
-            player1_name: gameData.player1.name,
-            player2_id: gameData.isMultiplayer ? gameData.player2.id : 'ai_player',
-            player2_name: gameData.player2.name,
-            winner_id: winnerId,
-            game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
-            final_score: {
-                board_state: gameData.board,
-                moves_made: gameData.board.filter(cell => cell !== null).length
-            },
-            game_mode: gameData.isMultiplayer ? 'multiplayer' : 'vs_ai'
-        };
+        const players = [{ id: gameData.player1.id, name: this.sanitizePlayerName(gameData.player1.name) }];
+        if (gameData.isMultiplayer) {
+            players.push({ id: gameData.player2.id, name: this.sanitizePlayerName(gameData.player2.name) });
+        }
         
-        gameStats.recordOutcome(outcomeData);
+        gameStats.recordGameOutcome(
+            this.gameType,
+            gameData,
+            winnerId,
+            players,
+            {
+                aiName: gameData.isMultiplayer ? null : 'Cowsay',
+                finalScore: {
+                    board_state: gameData.board,
+                    moves_made: gameData.board.filter(cell => cell !== null).length
+                },
+                gameMode: gameData.isMultiplayer ? 'multiplayer' : 'vs_ai'
+            }
+        );
     }
 }
 

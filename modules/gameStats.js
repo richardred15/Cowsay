@@ -46,6 +46,43 @@ class GameStats {
         }
     }
 
+    // Unified method for recording game outcomes from any game
+    async recordGameOutcome(gameType, gameData, winnerId, players, additionalData = {}) {
+        // Handle single player vs AI
+        if (players.length === 1) {
+            const player = players[0];
+            return await this.recordOutcome({
+                server_id: gameData.serverId || 'unknown',
+                game_type: gameType,
+                player1_id: player.id,
+                player1_name: player.name,
+                player2_id: 'ai_player',
+                player2_name: additionalData.aiName || 'AI',
+                winner_id: winnerId,
+                game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+                final_score: additionalData.finalScore || {},
+                game_mode: additionalData.gameMode || 'vs_ai'
+            });
+        }
+
+        // Handle multiplayer games
+        for (const player of players) {
+            const otherPlayer = players.find(p => p.id !== player.id);
+            await this.recordOutcome({
+                server_id: gameData.serverId || 'unknown',
+                game_type: gameType,
+                player1_id: player.id,
+                player1_name: player.name,
+                player2_id: otherPlayer?.id || 'ai_player',
+                player2_name: otherPlayer?.name || 'AI',
+                winner_id: winnerId,
+                game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+                final_score: additionalData.finalScore || {},
+                game_mode: additionalData.gameMode || 'multiplayer'
+            });
+        }
+    }
+
     async hasOptedOut(userId) {
         if (!userId || userId === "ai_player") return false;
 

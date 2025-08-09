@@ -23,6 +23,15 @@ class SecurityUtils {
             });
     }
 
+    // Sanitize player names for games
+    static sanitizePlayerName(name) {
+        if (!name) return 'Unknown';
+        return this.sanitizeForDisplay(String(name))
+            .replace(/[<>@#&!\r\n\t]/g, '')
+            .replace(/[^\x20-\x7E]/g, '')
+            .substring(0, 32);
+    }
+
     // Validate user input length and content
     static validateInput(input, maxLength = 2000) {
         if (!input || typeof input !== 'string') {

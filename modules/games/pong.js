@@ -4,10 +4,14 @@ const {
     ButtonBuilder,
     ButtonStyle,
 } = require("discord.js");
+const BaseGame = require('./baseGame');
+const gameRewards = require('./gameRewards');
+const gameStats = require('../gameStats');
 const Logger = require("../logger");
 
-class Pong {
+class Pong extends BaseGame {
     constructor() {
+        super('pong');
         this.activeGames = new Map();
         this.width = 30;
         this.height = 10;
@@ -16,14 +20,11 @@ class Pong {
     async start(message) {
         const gameKey = `pong_${message.author.id}_${Date.now()}`;
 
-        const gameData = {
-            type: "pong",
+        const gameData = this.createBaseGameData(message.author, message.guild?.id, {
             phase: "waiting",
-            serverId: message.guild?.id,
-            startTime: null,
             player1: {
                 id: message.author.id,
-                name: message.author.displayName,
+                name: this.sanitizePlayerName(message.author.displayName),
                 paddle: 4,
             },
             player2: null,
@@ -36,7 +37,7 @@ class Pong {
             scores: { player1: 0, player2: 0 },
             messageId: null,
             gameInterval: null,
-        };
+        });
 
         Logger.debug('Pong game started', { gameKey, playerId: message.author.id });
 
@@ -103,7 +104,7 @@ class Pong {
 
         game.player2 = {
             id: interaction.user.id,
-            name: interaction.user.displayName,
+            name: this.sanitizePlayerName(interaction.user.displayName),
             paddle: 4,
         };
         game.phase = "countdown";
@@ -301,11 +302,8 @@ class Pong {
         let title = "🏓 Pong";
         let description = "";
 
-        // Sanitize display names to prevent XSS
-        const SecurityUtils = require('../security');
-        const sanitizeName = (name) => name ? SecurityUtils.sanitizeForDisplay(name).substring(0, 32) : 'Unknown';
-        const player1Name = sanitizeName(game.player1.name);
-        const player2Name = game.player2 ? sanitizeName(game.player2.name) : null;
+        const player1Name = this.sanitizePlayerName(game.player1.name);
+        const player2Name = game.player2 ? this.sanitizePlayerName(game.player2.name) : null;
         
         if (game.phase === "waiting") {
             description = `**${player1Name}** is waiting for an opponent!\nClick "Join Game" to play!`;
@@ -460,7 +458,6 @@ class Pong {
     }
 
     async awardCoins(game) {
-        const currencyManager = require('../currencyManager');
         const winnerId = game.scores.player1 >= 5 ? game.player1.id : game.player2.id;
         const loserId = winnerId === game.player1.id ? game.player2.id : game.player1.id;
         const winnerScore = winnerId === game.player1.id ? game.scores.player1 : game.scores.player2;
@@ -470,65 +467,47 @@ class Pong {
         
         // Check for perfect game (shutout 5-0)
         const isPerfectGame = winnerScore === 5 && loserScore === 0;
-        const baseReward = isPerfectGame ? 75 : 50; // +25 bonus for shutout
+        const outcome = isPerfectGame ? 'perfect' : 'win';
         
         // Award coins to winner
         if (winnerId === game.player1.id) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.info('Pong player 1 won', { baseReward, winnerId });
-            const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
+            const winReward = await gameRewards.awardGameReward(winnerId, this.gameType, outcome);
             game.winnerReward = winReward;
-            secureLogger.info('Pong win reward processed', { awarded: winReward.awarded });
         } else if (!game.player2.isAI) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.info('Pong player 2 won', { baseReward, winnerId });
-            const winReward = await currencyManager.awardCoins(winnerId, baseReward, isPerfectGame ? 'Pong perfect win' : 'Pong win');
+            const winReward = await gameRewards.awardGameReward(winnerId, this.gameType, outcome);
             game.winnerReward = winReward;
-            secureLogger.info('Pong win reward processed', { awarded: winReward.awarded });
         }
         
         // Award participation coins to loser and handle streak
         if (loserId === game.player1.id) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.info('Pong player 1 lost, awarding participation coins', { loserId });
-            const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
-            const lossResult = await currencyManager.recordLoss(loserId);
-            game.loserReward = participationReward;
-            game.shieldUsed = lossResult.shieldUsed;
+            await gameRewards.awardGameReward(loserId, this.gameType, 'participation');
         } else if (!game.player2.isAI && loserId === game.player2.id) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.info('Pong player 2 lost, awarding participation coins', { loserId });
-            const participationReward = await currencyManager.awardCoins(loserId, 10, 'Pong participation');
-            const lossResult = await currencyManager.recordLoss(loserId);
-            game.loserReward = participationReward;
-            game.shieldUsed = lossResult.shieldUsed;
+            await gameRewards.awardGameReward(loserId, this.gameType, 'participation');
         }
     }
 
     recordGameOutcome(game) {
         if (!game.player2) return; // Need both players
         
-        const gameStats = require('../gameStats');
         const winner = game.scores.player1 >= 5 ? game.player1.id : game.player2.id;
-        const gameMode = game.player2.isAI ? 'vs_ai' : 'multiplayer';
+        const players = [
+            { id: game.player1.id, name: this.sanitizePlayerName(game.player1.name) },
+            { id: game.player2.id, name: this.sanitizePlayerName(game.player2.name) }
+        ];
         
-        const outcomeData = {
-            server_id: game.serverId || 'unknown',
-            game_type: 'pong',
-            player1_id: game.player1.id,
-            player1_name: game.player1.name,
-            player2_id: game.player2.id,
-            player2_name: game.player2.name,
-            winner_id: winner,
-            game_duration: game.startTime ? Math.floor((Date.now() - game.startTime) / 1000) : null,
-            final_score: {
-                player1_score: game.scores.player1,
-                player2_score: game.scores.player2
-            },
-            game_mode: gameMode
-        };
-        
-        gameStats.recordOutcome(outcomeData);
+        gameStats.recordGameOutcome(
+            this.gameType,
+            game,
+            winner,
+            players,
+            {
+                finalScore: {
+                    player1_score: game.scores.player1,
+                    player2_score: game.scores.player2
+                },
+                gameMode: game.player2.isAI ? 'vs_ai' : 'multiplayer'
+            }
+        );
     }
 }
 

@@ -4,6 +4,9 @@ const battleship = require('./games/battleship');
 const balatro = require('./games/balatro');
 const pong = require('./games/pong');
 const roulette = require('./games/roulette');
+const gameUI = require('./games/gameUI');
+const gameRewards = require('./games/gameRewards');
+const BaseGame = require('./games/baseGame');
 
 class GameManager {
     constructor() {

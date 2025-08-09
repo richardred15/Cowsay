@@ -5,10 +5,15 @@ const {
     ButtonStyle,
     MessageFlags,
 } = require("discord.js");
+const BaseGame = require('./baseGame');
+const gameUI = require('./gameUI');
+const gameRewards = require('./gameRewards');
+const gameStats = require('../gameStats');
 const currencyManager = require("../currencyManager");
 
-class Roulette {
+class Roulette extends BaseGame {
     constructor() {
+        super('roulette');
         // European roulette wheel order (clockwise from 0)
         this.wheelOrder = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
@@ -92,16 +97,13 @@ class Roulette {
             components: buttons,
         });
 
-        const gameData = {
-            type: "roulette",
+        const gameData = this.createBaseGameData(message.author, message.guild?.id, {
             phase: "betting",
             channelId: message.channel.id,
             players: new Map(), // userId -> { bets: [], totalBet: number }
-            startTime: Date.now(),
             bettingDuration: 60000, // 60 seconds
-            serverId: message.guild?.id,
             messageId: reply.id,
-        };
+        });
 
         const gameKey = `roulette_${message.channel.id}_${Date.now()}`;
 
@@ -179,32 +181,7 @@ class Roulette {
                 gameManager
             );
         }
-
-        if (interaction.customId.startsWith("roulette_amount_")) {
-            const parts = interaction.customId.split("_");
-            if (parts.length === 5) {
-                // Handle straight bet with number: roulette_amount_straight_NUMBER_AMOUNT
-                const [, , betType, number, amount] = parts;
-                return await this.placeBet(
-                    interaction,
-                    gameData,
-                    gameKey,
-                    gameManager,
-                    betType,
-                    parseInt(amount),
-                    parseInt(number)
-                );
-            } else {
-                // Handle regular bet: roulette_amount_BETTYPE_AMOUNT
-                return await this.handleBetAmount(
-                    interaction,
-                    gameData,
-                    gameKey,
-                    gameManager
-                );
-            }
-        }
-
+        
         if (interaction.customId.startsWith("roulette_number_")) {
             return await this.handleNumberBet(
                 interaction,
@@ -217,65 +194,36 @@ class Roulette {
         return false;
     }
 
+    async handleBetPlaced(betInteraction, betAmount, payload) {
+        const { betType, number, gameData, gameKey, gameManager } = payload;
+        return await this.placeBet(
+            betInteraction,
+            gameData,
+            gameKey,
+            gameManager,
+            betType,
+            betAmount,
+            number
+        );
+    }
+
     async handleBet(interaction, gameData, gameKey, gameManager) {
         const betType = interaction.customId.split("_")[2];
-        const userId = interaction.user.id;
 
         if (betType === "number") {
             return await this.showNumberSelection(interaction);
         }
 
-        return await this.showBetAmountSelection(interaction, betType);
-    }
-
-    async showBetAmountSelection(interaction, betType) {
-        const balance = await currencyManager.getBalance(interaction.user.id);
-
-        if (balance < 10) {
-            await interaction.reply({
-                content:
-                    "You need at least 10 coins to bet! Use `!cowsay daily` to get more coins.",
-                flags: MessageFlags.Ephemeral,
-            });
-            return true;
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle(`🎰 Betting on ${this.betTypes[betType].name}`)
-            .setDescription(
-                `Your balance: **${balance}** coins\nPayout: **${this.betTypes[betType].payout}:1**\nChoose your bet amount:`
-            )
-            .setColor(0x00ae86);
-
-        const buttons = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_${betType}_10`)
-                .setLabel("🪙 10 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 10),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_${betType}_25`)
-                .setLabel("🪙 25 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 25),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_${betType}_50`)
-                .setLabel("🪙 50 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 50),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_${betType}_100`)
-                .setLabel("🪙 100 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 100)
+        return await gameUI.requestBetAmount(
+            interaction,
+            this.handleBetPlaced.bind(this),
+            { betType, gameData, gameKey, gameManager, interaction },
+            {
+                title: `Betting on ${this.betTypes[betType].name}`,
+                description: `Payout: **${this.betTypes[betType].payout}:1**\nChoose your bet amount:`,
+                minBet: 1
+            }
         );
-
-        await interaction.reply({
-            embeds: [embed],
-            components: [buttons],
-            flags: MessageFlags.Ephemeral,
-        });
-        return true;
     }
 
     async showNumberSelection(interaction) {
@@ -316,63 +264,44 @@ class Roulette {
             components: buttons,
             flags: MessageFlags.Ephemeral,
         });
+        
+        // Store this interaction for cleanup
+        if (!this.numberSelectionInteractions) {
+            this.numberSelectionInteractions = new Map();
+        }
+        this.numberSelectionInteractions.set(interaction.user.id, interaction);
+        
         return true;
     }
 
-    async handleBetAmount(interaction, gameData, gameKey, gameManager) {
-        const [, , betType, amount] = interaction.customId.split("_");
-        const betAmount = parseInt(amount);
-        const userId = interaction.user.id;
 
-        return await this.placeBet(
-            interaction,
-            gameData,
-            gameKey,
-            gameManager,
-            betType,
-            betAmount
-        );
-    }
 
     async handleNumberBet(interaction, gameData, gameKey, gameManager) {
         const number = parseInt(interaction.customId.split("_")[2]);
-        const balance = await currencyManager.getBalance(interaction.user.id);
-
-        const embed = new EmbedBuilder()
-            .setTitle(`📍 Betting on Number ${number}`)
-            .setDescription(
-                `Your balance: **${balance}** coins\nPayout: **35:1**\nChoose your bet amount:`
-            )
-            .setColor(0x00ae86);
-
-        const buttons = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_straight_${number}_10`)
-                .setLabel("🪙 10 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 10),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_straight_${number}_25`)
-                .setLabel("🪙 25 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 25),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_straight_${number}_50`)
-                .setLabel("🪙 50 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 50),
-            new ButtonBuilder()
-                .setCustomId(`roulette_amount_straight_${number}_100`)
-                .setLabel("🪙 100 coins")
-                .setStyle(ButtonStyle.Primary)
-                .setDisabled(balance < 100)
+        
+        // Delete the number selection message
+        if (this.numberSelectionInteractions) {
+            const numberInteraction = this.numberSelectionInteractions.get(interaction.user.id);
+            if (numberInteraction) {
+                try {
+                    await numberInteraction.deleteReply();
+                } catch (error) {
+                    // Message already deleted or expired
+                }
+                this.numberSelectionInteractions.delete(interaction.user.id);
+            }
+        }
+        
+        return await gameUI.requestBetAmount(
+            interaction,
+            this.handleBetPlaced.bind(this),
+            { betType: 'straight', number, gameData, gameKey, gameManager, interaction },
+            {
+                title: `Betting on Number ${number}`,
+                description: 'Payout: **35:1**\nChoose your bet amount:',
+                minBet: 1
+            }
         );
-
-        await interaction.update({
-            embeds: [embed],
-            components: [buttons],
-        });
-        return true;
     }
 
     async placeBet(
@@ -413,6 +342,15 @@ class Roulette {
         }
 
         const player = gameData.players.get(userId);
+        // Validate bet amount
+        if (!betAmount || isNaN(betAmount) || betAmount <= 0) {
+            await interaction.reply({
+                content: "❌ Invalid bet amount!",
+                flags: MessageFlags.Ephemeral
+            });
+            return true;
+        }
+
         const bet = {
             type: betType,
             amount: betAmount,
@@ -423,24 +361,17 @@ class Roulette {
         player.bets.push(bet);
         player.totalBet += betAmount;
 
-        await interaction.update({
+        await interaction.reply({
             content: `✅ Bet placed: **${betAmount} coins** on **${
                 betType === "straight"
                     ? `Number ${number}`
                     : this.betTypes[betType].name
             }**\nYou can place more bets or wait for the spin!`,
-            embeds: [],
-            components: [],
+            flags: MessageFlags.Ephemeral
         });
 
         // Auto-delete ephemeral message after 12 seconds to reduce clutter
-        setTimeout(async () => {
-            try {
-                await interaction.deleteReply();
-            } catch (error) {
-                // Message already deleted or interaction expired
-            }
-        }, 12000);
+        gameUI.autoDeleteEphemeral(interaction, 12000);
 
         // Update game data in manager
         gameManager.activeGames.set(gameKey, gameData);
@@ -669,7 +600,7 @@ class Roulette {
 
             // Always award winnings if player won any bets
             if (playerWinnings > 0) {
-                await currencyManager.awardCoins(
+                await gameRewards.awardRoulettePayout(
                     userId,
                     playerWinnings,
                     "Roulette winnings"
@@ -1068,8 +999,6 @@ class Roulette {
     }
 
     recordGameOutcome(gameData, winningNumber, results) {
-        const gameStats = require("../gameStats");
-
         // Record outcome for each player
         for (const [userId, player] of gameData.players) {
             const isWinner = results.winners.some((w) => w.userId === userId);
@@ -1077,28 +1006,26 @@ class Roulette {
                 ? results.winners.find((w) => w.userId === userId)
                 : results.losers.find((l) => l.userId === userId);
 
-            const outcomeData = {
-                server_id: gameData.serverId,
-                game_type: "roulette",
-                player1_id: userId,
-                player1_name: player.name,
-                player2_id: "ai_player",
-                player2_name: "House",
-                winner_id: isWinner ? userId : "ai_player",
-                game_duration: Math.floor(
-                    (Date.now() - gameData.startTime) / 1000
-                ),
-                final_score: {
-                    winning_number: winningNumber,
-                    total_bet: player.totalBet,
-                    total_payout: isWinner ? playerResult.winnings : 0,
-                    profit: isWinner ? playerResult.profit : -player.totalBet,
-                    bets: player.bets,
-                },
-                game_mode: "multiplayer",
-            };
-
-            gameStats.recordOutcome(outcomeData);
+            const players = [{ id: userId, name: this.sanitizePlayerName(player.name) }];
+            const winnerId = isWinner ? userId : "ai_player";
+            
+            gameStats.recordGameOutcome(
+                this.gameType,
+                gameData,
+                winnerId,
+                players,
+                {
+                    aiName: "House",
+                    finalScore: {
+                        winning_number: winningNumber,
+                        total_bet: player.totalBet,
+                        total_payout: isWinner ? playerResult.winnings : 0,
+                        profit: isWinner ? playerResult.profit : -player.totalBet,
+                        bets: player.bets,
+                    },
+                    gameMode: "multiplayer"
+                }
+            );
         }
     }
 }

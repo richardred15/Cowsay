@@ -52,6 +52,7 @@ const balatro = require("./modules/games/balatro");
 const battleship = require("./modules/games/battleship");
 const pong = require("./modules/games/pong");
 const unicodeNormalizer = require("./modules/unicodeNormalizer");
+const gameUI = require("./modules/games/gameUI");
 
 const client = new Client({
     intents: [
@@ -186,7 +187,7 @@ client.on("interactionCreate", async (interaction) => {
         return;
     }
 
-    if (interaction.isButton()) {
+    if (interaction.isButton() || interaction.isModalSubmit()) {
         try {
             // Handle shop purchases
             if (interaction.customId.startsWith("shop_buy_")) {
@@ -258,7 +259,13 @@ client.on("interactionCreate", async (interaction) => {
                 return;
             }
 
-            // Try game manager first, if it doesn't handle it, let it fall through
+            // Try gameUI first for bet interactions
+            const gameUIHandled = await gameUI.handleGameUIInteraction(interaction);
+            if (gameUIHandled) {
+                return;
+            }
+
+            // Try game manager next
             const gameHandled = await gameManager.handleButtonInteraction(
                 interaction
             );
@@ -269,6 +276,7 @@ client.on("interactionCreate", async (interaction) => {
             // If not handled by game manager, it might be pagination or other system buttons
             // These will be handled by their respective collectors, so we don't need to do anything
         } catch (error) {
+            console.log(error);
             Logger.error("Button interaction error", error.message);
             if (!interaction.replied) {
                 await interaction.reply({
@@ -1094,16 +1102,6 @@ client.on("messageCreate", async (message) => {
         await adminCommand.execute(message, args);
         return;
     }
-
-
-
-
-
-
-
-
-
-
 
     // Handle both !cowsay play blackjack and !blackjack commands
     const isBlackjackCommand =
