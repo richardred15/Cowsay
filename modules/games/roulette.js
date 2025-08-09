@@ -826,7 +826,7 @@ class Roulette {
 
                 const totalProfit = isWinner
                     ? playerResult.profit
-                    : -player.totalBet;
+                    : playerResult.profit; // Use actual profit from results
                 const profitText =
                     totalProfit >= 0 ? `+${totalProfit}` : `${totalProfit}`;
                 
