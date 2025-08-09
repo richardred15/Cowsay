@@ -674,14 +674,19 @@ class Roulette {
             const netResult = playerWinnings - player.totalBet;
             console.log(`[ROULETTE DEBUG] Player ${player.name}: winnings=${playerWinnings}, totalBet=${player.totalBet}, netResult=${netResult}`);
             
-            if (netResult > 0) {
-                // Player made a profit - award the net gain
-                console.log(`[ROULETTE DEBUG] Awarding ${netResult} coins to ${player.name}`);
+            // Always award winnings if player won any bets
+            if (playerWinnings > 0) {
+                console.log(`[ROULETTE DEBUG] Awarding ${playerWinnings} coins to ${player.name}`);
                 await currencyManager.awardCoins(
                     userId,
-                    netResult,
-                    "Roulette win"
+                    playerWinnings,
+                    "Roulette winnings"
                 );
+            }
+            
+            // Handle win/loss categorization and streak logic
+            if (netResult > 0) {
+                // Player made a net profit
                 results.winners.push({
                     userId,
                     name: player.name,
@@ -691,8 +696,8 @@ class Roulette {
                     winningBets,
                 });
             } else {
-                // Player lost - record the loss for streak/shield handling
-                console.log(`[ROULETTE DEBUG] Recording loss for ${player.name}`);
+                // Player had net loss - record for streak/shield handling
+                console.log(`[ROULETTE DEBUG] Recording loss for ${player.name} (net result: ${netResult})`);
                 await currencyManager.recordLoss(
                     userId,
                     "Roulette loss"
@@ -701,6 +706,7 @@ class Roulette {
                     userId,
                     name: player.name,
                     totalBet: player.totalBet,
+                    profit: netResult, // Add profit field for display
                     losingBets,
                 });
             }
