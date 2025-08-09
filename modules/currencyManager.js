@@ -214,9 +214,11 @@ class CurrencyManager {
             if (reason.includes('win')) {
                 console.log(`[CURRENCY DEBUG] Reason contains 'win' - applying bonuses`);
                 const today = new Date().toISOString().split('T')[0];
+                const lastWinDate = player.last_win ? new Date(player.last_win).toISOString().split('T')[0] : null;
                 console.log(`[CURRENCY DEBUG] Today: ${today}`);
+                console.log(`[CURRENCY DEBUG] Last win date: ${lastWinDate}`);
                 
-                if (player.last_win === today) {
+                if (lastWinDate === today) {
                     // Multiple wins same day - increment streak
                     newStreak = newStreak + 1;
                     console.log(`[CURRENCY DEBUG] Multiple wins today - streak incremented to: ${newStreak}`);
