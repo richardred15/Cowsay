@@ -56,16 +56,12 @@ class CurrencyManager {
                 [userId]
             );
             
-            console.log(`[CURRENCY] Query result for ${SecurityUtils.sanitizeForLog(userId)}:`, rows);
-            
             if (!rows || rows.length === 0) {
-                console.log(`[CURRENCY] No user found, creating with 1000 coins`);
                 await this.createUser(userId);
                 return 1000;
             }
             
             const balance = rows[0]?.balance || rows.balance;
-            console.log(`[CURRENCY] Returning balance: ${balance}`);
             return balance;
         } catch (error) {
             const secureLogger = require('./secureLogger');
@@ -169,11 +165,6 @@ class CurrencyManager {
 
     async awardCoins(userId, amount, reason = 'Game reward') {
         try {
-            console.log(`[CURRENCY DEBUG] === AWARD COINS START ===`);
-            console.log(`[CURRENCY DEBUG] User: ${userId}`);
-            console.log(`[CURRENCY DEBUG] Amount: ${amount}`);
-            console.log(`[CURRENCY DEBUG] Reason: ${reason}`);
-            
             await this.createUser(userId);
             
             const rows = await database.query(
@@ -202,40 +193,28 @@ class CurrencyManager {
             let newStreak = player.win_streak || 0;
             let firstWinBonus = false;
             
-            console.log(`[CURRENCY DEBUG] Balance before: ${balanceBefore}`);
-            console.log(`[CURRENCY DEBUG] Current streak: ${newStreak}`);
-            console.log(`[CURRENCY DEBUG] Last win: ${player.last_win}`);
-            console.log(`[CURRENCY DEBUG] Initial amount: ${finalAmount}`);
-            
             const secureLogger = require('./secureLogger');
             secureLogger.info('Awarding coins to user', { amount, reason: SecurityUtils.sanitizeForLog(reason), userId });
             
             // Apply streak bonus for wins
             if (reason.includes('win')) {
-                console.log(`[CURRENCY DEBUG] Reason contains 'win' - applying bonuses`);
                 const today = new Date().toISOString().split('T')[0];
                 const lastWinDate = player.last_win ? new Date(player.last_win).toISOString().split('T')[0] : null;
-                console.log(`[CURRENCY DEBUG] Today: ${today}`);
-                console.log(`[CURRENCY DEBUG] Last win date: ${lastWinDate}`);
                 
                 if (lastWinDate === today) {
                     // Multiple wins same day - increment streak
                     newStreak = newStreak + 1;
-                    console.log(`[CURRENCY DEBUG] Multiple wins today - streak incremented to: ${newStreak}`);
                 } else {
                     // First win of day - reset streak
                     newStreak = 1;
                     firstWinBonus = true;
                     // First win of day bonus (2x)
                     finalAmount *= 2;
-                    console.log(`[CURRENCY DEBUG] First win of day - 2x bonus applied: ${finalAmount}`);
                 }
                 
                 // Win streak bonus (max 50%)
                 const streakBonus = Math.min(0.5, (newStreak - 1) * 0.1);
-                const beforeStreakBonus = finalAmount;
                 finalAmount = Math.floor(finalAmount * (1 + streakBonus));
-                console.log(`[CURRENCY DEBUG] Streak bonus: ${streakBonus * 100}% (${beforeStreakBonus} -> ${finalAmount})`);
                 
                 const secureLogger = require('./secureLogger');
                 secureLogger.info('Bonus calculation', { finalAmount, streak: newStreak, firstWin: firstWinBonus, userId });
@@ -245,7 +224,6 @@ class CurrencyManager {
                     [finalAmount, newStreak, today, finalAmount, userId]
                 );
             } else {
-                console.log(`[CURRENCY DEBUG] Reason does not contain 'win' - no bonuses applied`);
                 await database.query(
                     'UPDATE user_currency SET balance = balance + ?, total_earned = total_earned + ? WHERE user_id = ?',
                     [finalAmount, finalAmount, userId]
@@ -253,13 +231,9 @@ class CurrencyManager {
             }
             
             const newBalance = balanceBefore + finalAmount;
-            console.log(`[CURRENCY DEBUG] Final amount awarded: ${finalAmount}`);
-            console.log(`[CURRENCY DEBUG] New balance: ${newBalance}`);
             
             // Log transaction
             await this.logTransaction(userId, finalAmount, reason, balanceBefore, newBalance);
-            console.log(`[CURRENCY DEBUG] Transaction logged`);
-            console.log(`[CURRENCY DEBUG] === AWARD COINS END ===`);
             
             return {
                 awarded: finalAmount,
@@ -268,7 +242,6 @@ class CurrencyManager {
                 firstWinBonus
             };
         } catch (error) {
-            console.log(`[CURRENCY DEBUG] ERROR: ${error.message}`);
             const secureLogger = require('./secureLogger');
             secureLogger.error('Error awarding coins', { error: error.message.substring(0, 100), userId });
             // Return safe defaults but don't fail silently

@@ -1158,6 +1158,16 @@ client.on("messageCreate", async (message) => {
         }
     }
 
+    // Handle !roulette shortcut command
+    if (message.content === "!roulette") {
+        if (await gameManager.startGame(message, "roulette")) {
+            return;
+        } else {
+            message.reply("Failed to start roulette game!");
+            return;
+        }
+    }
+
     if (message.content.startsWith("!cowsay play ")) {
         const args = message.content.slice(13).trim().split(" ");
         const gameName = args[0].toLowerCase();

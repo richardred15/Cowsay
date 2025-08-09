@@ -387,17 +387,6 @@ class Roulette {
         const userId = interaction.user.id;
         const userName = interaction.user.displayName;
 
-        console.log(
-            `[ROULETTE DEBUG] ${userName} placing bet: ${betType} ${betAmount} coins${
-                number ? ` on number ${number}` : ""
-            }`
-        );
-
-        const balanceBefore = await currencyManager.getBalance(userId);
-        console.log(
-            `[ROULETTE DEBUG] ${userName} balance before bet: ${balanceBefore}`
-        );
-
         // Check if user can afford the bet
         const canAfford = await currencyManager.spendCoins(
             userId,
@@ -405,17 +394,7 @@ class Roulette {
             `Roulette bet: ${betType}${number ? ` ${number}` : ""}`
         );
 
-        const balanceAfter = await currencyManager.getBalance(userId);
-        console.log(
-            `[ROULETTE DEBUG] ${userName} balance after bet: ${balanceAfter}, spent: ${
-                balanceBefore - balanceAfter
-            }`
-        );
-
         if (!canAfford) {
-            console.log(
-                `[ROULETTE DEBUG] ${userName} could not afford bet of ${betAmount}`
-            );
             await interaction.update({
                 content: "❌ You don't have enough coins for this bet!",
                 embeds: [],
@@ -498,33 +477,24 @@ class Roulette {
 
         // Start animation
         await this.spinAnimation(interaction, winningNumber, gameData);
-        console.log(`[ROULETTE] Animation finished, calculating payouts`);
 
         // Calculate payouts
         const results = await this.calculatePayouts(gameData, winningNumber);
-        console.log(`[ROULETTE] Payouts calculated:`, results);
 
         // Show final results
         await this.showResults(interaction, gameData, winningNumber, results);
-        console.log(`[ROULETTE] Results shown`);
 
         // Record game outcome
         this.recordGameOutcome(gameData, winningNumber, results);
-        console.log(`[ROULETTE] Game outcome recorded`);
 
         // Clean up
         gameManager.activeGames.delete(gameKey);
-        console.log(`[ROULETTE] Game cleaned up`);
     }
 
     async spinAnimation(interaction, winningNumber, gameData) {
         const winningIndex = this.wheelOrder.indexOf(winningNumber);
         const totalFrames = 25; // Fixed frame count for ~15-20 seconds
         const CryptoRandom = require("../cryptoRandom");
-
-        console.log(
-            `[ROULETTE] Starting animation: ${totalFrames} frames, winning number: ${winningNumber}`
-        );
 
         for (let frame = 0; frame < totalFrames; frame++) {
             let ballPosition;
@@ -581,17 +551,9 @@ class Roulette {
                     components: [],
                 });
             } catch (error) {
-                console.log(
-                    `[ROULETTE] Edit failed on frame ${frame}, trying followUp:`,
-                    error.message
-                );
                 try {
                     await interaction.followUp({ embeds: [spinEmbed] });
                 } catch (followUpError) {
-                    console.log(
-                        `[ROULETTE] FollowUp failed on frame ${frame}:`,
-                        followUpError.message
-                    );
                     break;
                 }
             }
@@ -606,8 +568,6 @@ class Roulette {
             const delay = 200 + progress * 800;
             await new Promise((resolve) => setTimeout(resolve, delay));
         }
-
-        console.log(`[ROULETTE] Animation complete, showing final result`);
     }
 
     generateWheelFrame(ballPosition, highlightWinner = null) {
@@ -656,10 +616,6 @@ class Roulette {
     }
 
     async calculatePayouts(gameData, winningNumber) {
-        console.log(
-            `[ROULETTE DEBUG] Starting payout calculation for winning number: ${winningNumber}`
-        );
-
         const results = {
             winners: [],
             losers: [],
@@ -667,13 +623,6 @@ class Roulette {
         };
 
         for (const [userId, player] of gameData.players) {
-            console.log(
-                `[ROULETTE DEBUG] Processing player ${player.name} (${userId})`
-            );
-            console.log(`[ROULETTE DEBUG] Player bets:`, player.bets);
-            console.log(
-                `[ROULETTE DEBUG] Player total bet: ${player.totalBet}`
-            );
 
             let playerWinnings = 0;
             let winningBets = [];
@@ -710,28 +659,16 @@ class Roulette {
                     const payout = bet.amount * (bet.payout + 1); // Include original bet
                     playerWinnings += payout;
                     winningBets.push({ ...bet, payout });
-                    console.log(
-                        `[ROULETTE DEBUG] BET WIN: ${bet.type} ${bet.amount} coins -> payout ${payout}`
-                    );
                 } else {
                     losingBets.push(bet);
-                    console.log(
-                        `[ROULETTE DEBUG] BET LOSE: ${bet.type} ${bet.amount} coins`
-                    );
                 }
             }
 
             // Calculate net result: total winnings minus total bet
             const netResult = playerWinnings - player.totalBet;
-            console.log(
-                `[ROULETTE DEBUG] Player ${player.name}: winnings=${playerWinnings}, totalBet=${player.totalBet}, netResult=${netResult}`
-            );
 
             // Always award winnings if player won any bets
             if (playerWinnings > 0) {
-                console.log(
-                    `[ROULETTE DEBUG] Awarding ${playerWinnings} coins to ${player.name}`
-                );
                 await currencyManager.awardCoins(
                     userId,
                     playerWinnings,
@@ -752,9 +689,6 @@ class Roulette {
                 });
             } else {
                 // Player had net loss - record for streak/shield handling
-                console.log(
-                    `[ROULETTE DEBUG] Recording loss for ${player.name} (net result: ${netResult})`
-                );
                 await currencyManager.recordLoss(userId, "Roulette loss");
                 results.losers.push({
                     userId,
@@ -768,7 +702,6 @@ class Roulette {
             results.totalPayout += playerWinnings;
         }
 
-        console.log(`[ROULETTE DEBUG] Final results:`, results);
         return results;
     }
 
