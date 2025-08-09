@@ -48,7 +48,7 @@ class SecurityUtils {
         const requests = new Map();
         
         // Cleanup old entries every 5 minutes
-        setInterval(() => {
+        const cleanupInterval = setInterval(() => {
             const now = Date.now();
             for (const [userId, userRequests] of requests.entries()) {
                 const validRequests = userRequests.filter(time => now - time < windowMs);

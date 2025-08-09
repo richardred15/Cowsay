@@ -10,7 +10,6 @@ const {
     ButtonBuilder,
     ButtonStyle,
 } = require("discord.js");
-const cowsay = require("cowsay");
 const llmProvider = require("./modules/llmProvider");
 const LLMService = require("./modules/llmService");
 const SecurityUtils = require("./modules/security");
@@ -20,17 +19,12 @@ const autoReply = require("./modules/autoReply");
 const IntentDetector = require("./modules/intentDetector");
 const cardRenderer = require("./modules/cardRenderer");
 const secureLogger = require("./modules/secureLogger");
-
-// Import new command modules
 const BalanceCommand = require("./modules/commands/balanceCommand");
 const AdminCommand = require("./modules/commands/adminCommand");
-
-// Import all modules at the top to avoid lazy loading
 const characterManager = require("./modules/characterManager");
 const toolManager = require("./modules/toolManager");
 const commandHandler = require("./modules/commandHandler");
 const ChatHandler = require("./modules/chatHandler");
-const MentionHandler = require("./modules/mentionHandler");
 const AskHandler = require("./modules/askHandler");
 const LeaderboardHandler = require("./modules/leaderboardHandler");
 const memberCache = require("./modules/memberCache");
@@ -140,7 +134,6 @@ client.once("ready", async () => {
 // Initialize handlers
 const llmService = new LLMService(llmProvider);
 const chatHandler = new ChatHandler(llmProvider);
-const mentionHandler = new MentionHandler(llmProvider, commandHandler);
 const askHandler = new AskHandler(llmProvider, commandHandler);
 const leaderboardHandler = new LeaderboardHandler(llmProvider, toolManager);
 const intentDetector = new IntentDetector();

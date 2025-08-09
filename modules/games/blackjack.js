@@ -120,23 +120,20 @@ class Blackjack extends BaseGame {
         try {
             const setupKey = `bj_setup_${interaction.user.id}`;
             const gameKey = `blackjack_${interaction.user.id}`;
-            console.log(
-                `Starting single player game for ${interaction.user.id} with bet ${betAmount}`
-            );
-            // Check if player can afford the bet
+            
             const canAfford = await currencyManager.subtractBalance(
                 interaction.user.id,
                 betAmount
             );
             if (!canAfford) {
-                await interaction.reply({
+                await interaction.update({
                     content: "You don't have enough coins for this bet!",
-                    flags: MessageFlags.Ephemeral,
+                    embeds: [],
+                    components: []
                 });
                 return true;
             }
 
-            // Remove setup game data
             gameManager.activeGames.delete(setupKey);
 
             const gameData = this.createGameData(
@@ -167,18 +164,8 @@ class Blackjack extends BaseGame {
                 interaction.user.id
             );
 
-            // Update the original message if we have it
-            if (setupGameData && setupGameData.originalMessage) {
-                try {
-                    await setupGameData.originalMessage.edit({ embeds: [embed], components: buttons });
-                } catch (error) {
-                    await interaction.reply({ embeds: [embed], components: buttons });
-                }
-            } else {
-                await interaction.reply({ embeds: [embed], components: buttons });
-            }
+            await interaction.update({ embeds: [embed], components: buttons });
 
-            // Check if game ended immediately (blackjack)
             if (gameData.gameOver) {
                 await this.postGameResults(interaction.channel, gameData);
                 gameManager.activeGames.delete(gameKey);
@@ -191,15 +178,19 @@ class Blackjack extends BaseGame {
                 error: error.message,
                 userId: interaction.user.id,
             });
-            await interaction.reply({
+            await interaction.update({
                 content: "An error occurred starting the game.",
-                flags: MessageFlags.Ephemeral,
+                embeds: [],
+                components: []
             });
             return true;
         }
     }
 
     async showBetSelection(interaction, isDealer, gameManager) {
+        const gameData = gameManager ? gameManager.activeGames.get(`bj_setup_${interaction.user.id}`) : null;
+        const isMultiplayer = gameData && gameData.mode === "multiplayer";
+        
         return await gameUI.requestBetAmount(
             interaction,
             this.handleBetPlaced.bind(this),
@@ -209,7 +200,7 @@ class Blackjack extends BaseGame {
                 description: "Choose your bet amount:",
                 amounts: [10, 25, 50, 100],
                 minBet: 10,
-                updateOriginal: true
+                updateOriginal: !isMultiplayer
             }
         );
     }
@@ -249,7 +240,7 @@ class Blackjack extends BaseGame {
         if (this.lobbies.has(channelId)) {
             await interaction.reply({
                 content: "There's already a blackjack lobby in this channel!",
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -263,7 +254,7 @@ class Blackjack extends BaseGame {
             if (!canAfford) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
-                    ephemeral: true,
+                    flags: MessageFlags.Ephemeral,
                 });
                 return true;
             }
@@ -275,7 +266,7 @@ class Blackjack extends BaseGame {
             });
             await interaction.reply({
                 content: "Error processing your bet. Please try again.",
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -319,7 +310,6 @@ class Blackjack extends BaseGame {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        // Update the original message if we have it
         if (setupGameData && setupGameData.originalMessage) {
             try {
                 await setupGameData.originalMessage.edit({ embeds: [embed], components: [buttons] });
@@ -327,7 +317,7 @@ class Blackjack extends BaseGame {
                 await interaction.reply({ embeds: [embed], components: [buttons] });
             }
         } else {
-            await interaction.update({ embeds: [embed], components: [buttons] });
+            await interaction.reply({ embeds: [embed], components: [buttons] });
         }
 
         // Start countdown timer
@@ -437,7 +427,6 @@ class Blackjack extends BaseGame {
             return true;
         }
 
-        // Show bet selection for joining player using unified system
         return await gameUI.requestBetAmount(
             interaction,
             this.handleJoinBetPlaced.bind(this),
@@ -446,7 +435,8 @@ class Blackjack extends BaseGame {
                 title: "Join Blackjack Game",
                 description: "Choose your bet amount to join:",
                 amounts: [10, 25, 50, 100],
-                minBet: 10
+                minBet: 10,
+                updateOriginal: false
             }
         );
     }

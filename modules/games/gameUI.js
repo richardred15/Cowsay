@@ -222,7 +222,9 @@ class GameUI {
     async autoDeleteEphemeral(interaction, delay = 12000) {
         setTimeout(async () => {
             try {
-                await interaction.deleteReply();
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.deleteReply();
+                }
             } catch (error) {
                 // Message already deleted or interaction expired
             }

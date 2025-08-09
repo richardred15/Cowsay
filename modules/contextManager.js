@@ -1,6 +1,5 @@
 const memberCache = require('./memberCache');
 const tagManager = require('./tagManager');
-const dataStore = require('./dataStore');
 const Logger = require('./logger');
 
 class ContextManager {
@@ -16,12 +15,9 @@ class ContextManager {
         this.maxAge = 10 * 60 * 1000; // 10 minutes
         this.maxReplyChainDepth = 5;
         
-        // Leaderboard history per server (not per channel)
+        // Leaderboard history per server (not per channel) - RAM only
         this.leaderboardHistory = new Map(); // serverId -> history
         this.maxLeaderboardSnapshots = 3;
-        
-        // Load persisted data
-        this.loadData();
     }
 
     // Add message to appropriate context
@@ -333,8 +329,7 @@ class ContextManager {
             serverHistory.shift();
         }
 
-        // Save to disk
-        this.saveData();
+        // No persistence needed - RAM only
 
         return snapshot;
     }
@@ -457,26 +452,7 @@ class ContextManager {
         });
     }
 
-    async loadData() {
-        try {
-            const leaderboardData = await dataStore.load('unified_leaderboard_history');
-            if (leaderboardData) {
-                this.leaderboardHistory = new Map(Object.entries(leaderboardData));
-                Logger.info('Unified leaderboard history loaded', { servers: this.leaderboardHistory.size });
-            }
-        } catch (error) {
-            Logger.error('Failed to load unified context data', error.message);
-        }
-    }
 
-    async saveData() {
-        try {
-            const leaderboardData = Object.fromEntries(this.leaderboardHistory);
-            await dataStore.save('unified_leaderboard_history', leaderboardData);
-        } catch (error) {
-            Logger.error('Failed to save unified context data:', error);
-        }
-    }
 }
 
 module.exports = new ContextManager();

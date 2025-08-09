@@ -3,6 +3,8 @@ const Pagination = require('./pagination');
 const { EmbedBuilder } = require('discord.js');
 const { getSystemPrompt, LLM_PROVIDER } = require('../config');
 const Logger = require('./logger');
+const discordPermissions = require('./discordPermissions');
+const contextManager = require('./contextManager');
 
 class CommandHandler {
     constructor() {
@@ -14,7 +16,6 @@ class CommandHandler {
     }
 
     async handleHelpCommand(message) {
-        const discordPermissions = require('./discordPermissions');
         const userLevel = await discordPermissions.getUserPermissionLevel(message);
         const isAdmin = userLevel === 'admin' || userLevel === 'owner';
         const isModerator = isAdmin || userLevel === 'moderator';
@@ -179,7 +180,6 @@ class CommandHandler {
     }
 
     handleClearCommand(message) {
-        const contextManager = require('./contextManager');
         const channelId = message.channel.id;
         
         if (message.channel.isThread()) {

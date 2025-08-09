@@ -10,6 +10,12 @@
 - Test files exist - update CI workflows when adding new games
 - Database schema versioning is important - current v12 with channel_threads
 - Roulette currency fix pattern: award winnings separately from net result logic
+- **Unified Game System**: Created comprehensive unified modules (baseGame.js, gameUI.js, gameRewards.js) to eliminate ~90% code duplication across games
+- **Custom Bet Modal System**: Implemented TextInput modal functionality for custom bet amounts with memory-based callback system
+- **Blackjack Flow Fixed**: Single player uses updateOriginal:true, multiplayer uses ephemeral bet selection with proper lobby/thread systems
+- **Message Update Patterns**: Let gameUI handle message updates, don't duplicate in game logic - prevents conflicts and "Something went wrong" errors
+- **Modal ID Matching**: Modal interactions require exact ID matching between creation and handling - mismatches cause Discord errors
+- **Discord Limits**: 5-button limit per row, ephemeral vs original message updates need careful handling based on game mode
 
 ## Project Overview
 Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary functions: ASCII art generation, AI chat, games with comprehensive currency system, inventory management, gifting system, and Discord-native permissions. Features modular architecture with built-in security framework. Uses MySQL for persistence, supports multiple LLM providers.
@@ -61,8 +67,12 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 #### Game System
 - **gameManager.js**: Central game coordinator with memory leak prevention and cleanup
 - **games/**: Individual game implementations with cryptographic security
+  - **baseGame.js**: NEW - Unified base class providing common game functionality
+  - **gameUI.js**: NEW - Unified UI module with bet selection, modal handling, and message management
+  - **gameRewards.js**: NEW - Centralized reward system for all games
+  - **exampleGame.js**: NEW - Minimal template showing unified system usage (~80 lines)
   - **roulette.js**: European roulette with animated wheel, multiple bet types, dealer personality
-  - **blackjack.js**: Full multiplayer with crypto-secure shuffling, betting, currency integration
+  - **blackjack.js**: Full multiplayer with crypto-secure shuffling, betting, currency integration (UPDATED to use unified system)
   - **battleship.js**: Web-based real-time game with secure WebSocket (wss://)
   - **balatro.js**: Poker scoring game with MySQL persistence and parameterized queries
   - **pong.js**: 2-player ASCII paddle game with XSS protection
@@ -230,13 +240,20 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **Comprehensive Testing**: Unit, integration, and performance test suites
 - **Bug Fixes**: Date comparison, streak logic, display calculations
 
+### Phase 8: Unified Game System (COMPLETE)
+- **Code Deduplication**: Created baseGame.js, gameUI.js, gameRewards.js to eliminate ~90% duplicate code
+- **Custom Bet System**: TextInput modal functionality with memory-based callbacks for any bet amount
+- **Blackjack Flow Fixes**: Proper single vs multiplayer bet selection flows with correct message update patterns
+- **Example Game Template**: Created minimal 80-line example game demonstrating all unified system features
+- **Modal Integration**: Fixed multiple technical issues with modal ID matching and interaction handling
+
 ## Future Enhancements
 
-### Phase 8: Planned Features
+### Phase 9: Planned Features
 - **Complete Index.js Refactor**: Move remaining commands to modular architecture
 - **Enhanced Error Recovery**: Implement game state recovery mechanisms
 - **Performance Monitoring**: Add metrics and monitoring for system health
-- **New Games**: Rock-Paper-Scissors, Dice Roll, Coin Flip
+- **New Games**: Rock-Paper-Scissors, Dice Roll, Coin Flip (using unified system)
 - **Advanced Social Features**: Trading system, teams, guilds
 - **Tournament System**: Organized competitions with brackets and prizes
 - **Achievement System**: Unlockable badges based on statistics
@@ -270,8 +287,12 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - Statistics tracking requires user consent (privacy-first approach)
 
 ## Development Patterns
+- **Unified Game Architecture**: BaseGame class provides common functionality, eliminates code duplication
 - **Modular Design**: Each game is self-contained with statistics integration
 - **Consistent Interfaces**: All games implement start(), handleInteraction(), and recordOutcome()
+- **Memory-Based Callbacks**: gameUI uses payload system instead of complex ID parsing for cleaner code
+- **Message Update Separation**: gameUI handles all message updates, games focus on logic only
+- **Modal Integration**: TextInput modals with exact ID matching for custom user inputs
 - **Error Boundaries**: Try-catch blocks with graceful fallbacks
 - **Async/Await**: Modern JavaScript patterns throughout
 - **Event-Driven**: Discord events drive all interactions

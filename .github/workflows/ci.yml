@@ -16,7 +16,7 @@ jobs:
             mysql:
                 image: mysql:8.0
                 env:
-                    MYSQL_ROOT_PASSWORD: test_password
+                    MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                     MYSQL_DATABASE: cowsay_test
                 ports:
                     - 3306:3306
@@ -36,7 +36,7 @@ jobs:
 
             - name: Wait for MySQL
               run: |
-                  until mysqladmin ping -h"127.0.0.1" -P3306 -uroot -ptest_password --silent; do
+                  until mysqladmin ping -h"127.0.0.1" -P3306 -uroot -p${{ secrets.MYSQL_TEST_PASSWORD }} --silent; do
                     echo 'Waiting for MySQL...'
                     sleep 1
                   done
@@ -47,7 +47,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
 
             - name: Security Tests
@@ -58,7 +58,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
@@ -71,7 +71,7 @@ jobs:
             mysql:
                 image: mysql:8.0
                 env:
-                    MYSQL_ROOT_PASSWORD: test_password
+                    MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                     MYSQL_DATABASE: cowsay_test
                 ports:
                     - 3306:3306
@@ -95,11 +95,10 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
 
             - name: Unit Tests
-              #run: npm run test:unit
               run: timeout 90s npm run test:unit || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
               timeout-minutes: 2
               env:
@@ -107,21 +106,20 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
 
             - name: Integration Tests
               run: timeout 90s npm run test:integration || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
-              #run: npm run test:integration
               timeout-minutes: 2
               env:
                   NODE_ENV: test
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
@@ -135,7 +133,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
@@ -149,7 +147,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
@@ -162,7 +160,7 @@ jobs:
             mysql:
                 image: mysql:8.0
                 env:
-                    MYSQL_ROOT_PASSWORD: test_password
+                    MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                     MYSQL_DATABASE: cowsay_test
                 ports:
                     - 3306:3306
@@ -186,7 +184,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
 
             - name: Performance Tests
@@ -197,7 +195,7 @@ jobs:
                   DB_HOST: 127.0.0.1
                   DB_PORT: 3306
                   DB_USER: root
-                  DB_PASSWORD: test_password
+                  DB_PASSWORD: ${{ secrets.MYSQL_TEST_PASSWORD }}
                   DB_NAME: cowsay_test
                   DISCORD_TOKEN: ${{ secrets.TEST_DISCORD_TOKEN }}
                   GROQ_API_KEY: mock_key
