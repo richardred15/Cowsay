@@ -1,5 +1,16 @@
 # Cowsay Discord Bot - Technical Summary
 
+**NOTE: This document is for AI assistant reference - contains technical context and development patterns for future sessions.**
+
+## AI Assistant Notes
+- User prefers minimal, efficient code - avoid verbose implementations
+- Always read existing code before making changes - don't make assumptions
+- Critical bugs often in currency/date logic - check comparisons carefully
+- User values security - SQL injection, XSS, crypto-secure random are priorities
+- Test files exist - update CI workflows when adding new games
+- Database schema versioning is important - current v12 with channel_threads
+- Roulette currency fix pattern: award winnings separately from net result logic
+
 ## Project Overview
 Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary functions: ASCII art generation, AI chat, games with comprehensive currency system, inventory management, gifting system, and Discord-native permissions. Features modular architecture with built-in security framework. Uses MySQL for persistence, supports multiple LLM providers.
 
