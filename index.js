@@ -558,6 +558,7 @@ client.on("messageCreate", async (message) => {
         const entries = history.map((tx, index) => {
             const sign = tx.amount >= 0 ? "+" : "";
             const date = new Date(tx.created_at).toLocaleDateString();
+            const time = new Date(tx.created_at).toLocaleTimeString();
             const emoji = tx.reason.includes("perfect")
                 ? "🏆"
                 : tx.reason.includes("win")
@@ -565,7 +566,7 @@ client.on("messageCreate", async (message) => {
                 : tx.reason.includes("participation")
                 ? "🎖️"
                 : "🪙";
-            return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date})*`;
+            return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date} ${time})*`;
         });
 
         if (entries.length <= 5) {

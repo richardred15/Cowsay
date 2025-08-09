@@ -128,6 +128,7 @@ jobs:
 
             - name: Roulette Unit Tests
               run: timeout 90s npm run test:roulette:unit || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
+              working-directory: ./tests
               timeout-minutes: 2
               env:
                   NODE_ENV: test
@@ -141,6 +142,7 @@ jobs:
 
             - name: Roulette Integration Tests
               run: timeout 90s npm run test:roulette:integration || ([ $? -eq 124 ] && echo "Tests completed but Jest hung - this is expected" && exit 0 || exit $?)
+              working-directory: ./tests
               timeout-minutes: 2
               env:
                   NODE_ENV: test
