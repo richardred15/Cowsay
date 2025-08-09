@@ -50,6 +50,7 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 #### Game System
 - **gameManager.js**: Central game coordinator with memory leak prevention and cleanup
 - **games/**: Individual game implementations with cryptographic security
+  - **roulette.js**: European roulette with animated wheel, multiple bet types, dealer personality
   - **blackjack.js**: Full multiplayer with crypto-secure shuffling, betting, currency integration
   - **battleship.js**: Web-based real-time game with secure WebSocket (wss://)
   - **balatro.js**: Poker scoring game with MySQL persistence and parameterized queries
@@ -77,6 +78,15 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **Performance**: Concurrent operations with Promise.all, optimized queries
 
 ## Game Implementations
+
+### Roulette
+- **Wheel Type**: European roulette (37 numbers: 0-36)
+- **Bet Types**: Red/black, even/odd, low/high (1-18/19-36), straight numbers
+- **Payouts**: 1:1 for outside bets, 35:1 for straight number bets
+- **Animation**: 25-frame progressive slowdown with ASCII wheel display
+- **UI Features**: Live betting display, countdown timer, dealer personality messages
+- **Currency Integration**: Net result system - awards winnings regardless of profit/loss
+- **Statistics**: Win/loss tracking, bet analysis, profit/loss calculations
 
 ### Blackjack
 - **Phases**: Setup → Betting → Playing → Results
@@ -202,9 +212,16 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **Admin Interface**: Paginated help system with proper markdown rendering
 - **Command Migration**: Moved from monolithic to modular architecture
 
+### Phase 7: Roulette Game Implementation (COMPLETE)
+- **European Roulette**: Complete implementation with 37-number wheel
+- **Advanced UI**: Animated spinning wheel, live betting display, dealer messages
+- **Currency Integration**: Fixed critical bugs in first-win bonus and payout logic
+- **Comprehensive Testing**: Unit, integration, and performance test suites
+- **Bug Fixes**: Date comparison, streak logic, display calculations
+
 ## Future Enhancements
 
-### Phase 7: Planned Features
+### Phase 8: Planned Features
 - **Complete Index.js Refactor**: Move remaining commands to modular architecture
 - **Enhanced Error Recovery**: Implement game state recovery mechanisms
 - **Performance Monitoring**: Add metrics and monitoring for system health

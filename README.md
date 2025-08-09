@@ -16,6 +16,7 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 - **Character Browser**: `!characters` - View all available characters
 
 ### 🎮 Games & Currency
+- **Roulette**: European roulette with animated wheel and multiple bet types
 - **Blackjack**: Full multiplayer with betting system
 - **Battleship**: Real-time naval combat (slash command)
 - **Balatro**: Poker-based scoring game (slash command)
@@ -205,6 +206,14 @@ npm start
 - AI opponent with simple ball-tracking logic
 - First to 5 points wins
 
+### 🎰 Roulette
+- European roulette wheel (0-36)
+- Multiple bet types: red/black, even/odd, low/high, straight numbers
+- Animated spinning wheel with progressive slowdown
+- Live betting display with real-time updates
+- Dealer personality messages and winner celebrations
+- 60-second betting phase with countdown timer
+
 ### ⭕ Tic-Tac-Toe
 - Challenge other players
 - Interactive button-based gameplay
@@ -213,6 +222,7 @@ npm start
 ## Coin Rewards System
 
 ### Base Rewards
+- **Roulette**: Variable based on bets placed and winning numbers
 - **Pong**: 50 coins (win), 10 coins (participation)
 - **Tic-Tac-Toe**: 30 coins (win), 5 coins (participation)
 - **Battleship**: 100 coins (win), 15 coins (participation)
