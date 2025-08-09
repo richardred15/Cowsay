@@ -1,5 +1,5 @@
 {
-  "version": 11,
+  "version": 12,
   "tables": {
     "balatro_games": {
       "columns": {
@@ -150,6 +150,17 @@
         "UNIQUE KEY unique_user_item (user_id, item_id)": ""
       },
       "indexes": ["user_id"]
+    },
+    "channel_threads": {
+      "columns": {
+        "channel_id": "VARCHAR(50) PRIMARY KEY",
+        "thread_id": "VARCHAR(50) NOT NULL",
+        "thread_name": "VARCHAR(100)",
+        "game_type": "VARCHAR(20) DEFAULT 'blackjack'",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "last_used": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+      },
+      "indexes": ["game_type"]
     }
   }
 }

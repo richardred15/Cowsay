@@ -3,11 +3,12 @@ const blackjack = require('./games/blackjack');
 const battleship = require('./games/battleship');
 const balatro = require('./games/balatro');
 const pong = require('./games/pong');
+const roulette = require('./games/roulette');
 
 class GameManager {
     constructor() {
         this.activeGames = new Map();
-        this.games = { tictactoe, blackjack, battleship, balatro, pong };
+        this.games = { tictactoe, blackjack, battleship, balatro, pong, roulette };
     }
 
     getAvailableGames() {
@@ -43,6 +44,11 @@ class GameManager {
                 {
                     name: '🏓 Pong',
                     value: '`!cowsay play pong` - Classic paddle game\n`!cowsay play pong ai` - Single player vs AI\n• **Multiplayer**: Use "Join Game" or "Play vs AI" buttons\n• Shared Up/Down controls for paddles\n• First to 5 points wins (1 FPS gameplay)',
+                    inline: false
+                },
+                {
+                    name: '🎰 Roulette',
+                    value: '`!cowsay play roulette` - European roulette wheel\n• **Multiple bet types**: Red/Black, Even/Odd, Numbers\n• **60-second betting phase** with animated wheel\n• **Payouts**: 1:1 for outside bets, 35:1 for numbers',
                     inline: false
                 },
                 {
@@ -190,7 +196,7 @@ class GameManager {
         const userId = interaction.user.id;
         
         // Only handle game-related buttons, ignore pagination and other system buttons
-        const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_'];
+        const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_', 'roulette_'];
         const isGameButton = gameButtonPrefixes.some(prefix => interaction.customId.startsWith(prefix)) ||
                             ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(interaction.customId);
         
@@ -211,6 +217,19 @@ class GameManager {
         // Check for pong interactions
         if (interaction.customId.startsWith('pong_')) {
             return await pong.handleInteraction(interaction, null, null, this);
+        }
+        
+        // Check for roulette interactions
+        if (interaction.customId.startsWith('roulette_')) {
+            // Find roulette game for this channel
+            const channelId = interaction.channel.id;
+            for (const [key, data] of this.activeGames) {
+                if (data && data.type === 'roulette' && data.channelId === channelId) {
+                    return await roulette.handleInteraction(interaction, data, key, this);
+                }
+            }
+            await interaction.reply({ content: "No active roulette game found!", flags: require('discord.js').MessageFlags.Ephemeral });
+            return true;
         }
         
         // Check for blackjack lobby interactions first (join/cancel/start)

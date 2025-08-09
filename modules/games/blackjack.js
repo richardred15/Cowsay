@@ -6,6 +6,7 @@ const {
     MessageFlags,
 } = require("discord.js");
 const currencyManager = require("../currencyManager");
+const database = require("../database");
 
 class Blackjack {
     constructor() {
@@ -134,7 +135,10 @@ class Blackjack {
             const gameKey = `blackjack_${interaction.user.id}`;
 
             // Check if player can afford the bet
-            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            const canAfford = await currencyManager.subtractBalance(
+                interaction.user.id,
+                betAmount
+            );
             if (!canAfford) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
@@ -182,8 +186,11 @@ class Blackjack {
 
             return true;
         } catch (error) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.error('Error in startSinglePlayer', { error: error.message, userId: interaction.user.id });
+            const secureLogger = require("../secureLogger");
+            secureLogger.error("Error in startSinglePlayer", {
+                error: error.message,
+                userId: interaction.user.id,
+            });
             await interaction.reply({
                 content: "An error occurred starting the game.",
                 flags: MessageFlags.Ephemeral,
@@ -284,7 +291,10 @@ class Blackjack {
 
         // Check if creator can afford the bet
         try {
-            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            const canAfford = await currencyManager.subtractBalance(
+                interaction.user.id,
+                betAmount
+            );
             if (!canAfford) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
@@ -293,8 +303,11 @@ class Blackjack {
                 return true;
             }
         } catch (error) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.error('Error checking balance for lobby bet', { error: error.message, userId: interaction.user.id });
+            const secureLogger = require("../secureLogger");
+            secureLogger.error("Error checking balance for lobby bet", {
+                error: error.message,
+                userId: interaction.user.id,
+            });
             await interaction.reply({
                 content: "Error processing your bet. Please try again.",
                 ephemeral: true,
@@ -310,7 +323,9 @@ class Blackjack {
                 {
                     id: interaction.user.id,
                     name: interaction.user.displayName,
-                    balance: await currencyManager.getBalance(interaction.user.id),
+                    balance: await currencyManager.getBalance(
+                        interaction.user.id
+                    ),
                     bet: betAmount,
                 },
             ],
@@ -516,7 +531,10 @@ class Blackjack {
         }
 
         try {
-            const canAfford = await currencyManager.subtractBalance(interaction.user.id, betAmount);
+            const canAfford = await currencyManager.subtractBalance(
+                interaction.user.id,
+                betAmount
+            );
             if (!canAfford) {
                 await interaction.reply({
                     content: "You don't have enough coins for this bet!",
@@ -525,8 +543,11 @@ class Blackjack {
                 return true;
             }
         } catch (error) {
-            const secureLogger = require('../secureLogger');
-            secureLogger.error('Error checking balance for join bet', { error: error.message, userId: interaction.user.id });
+            const secureLogger = require("../secureLogger");
+            secureLogger.error("Error checking balance for join bet", {
+                error: error.message,
+                userId: interaction.user.id,
+            });
             await interaction.reply({
                 content: "Error processing your bet. Please try again.",
                 ephemeral: true,
@@ -696,7 +717,18 @@ class Blackjack {
             )
             .setColor(0x00ff00);
 
-        // Find and update the lobby message
+        // Get or create persistent thread for this channel
+        const thread = await this.getOrCreateGameThread(channel);
+        
+        // Store thread info and send game message to thread
+        gameData.threadId = thread.id;
+        gameData.channelId = channel.id;
+        gameData.threadGameMessage = await thread.send({
+            embeds: [embed],
+            components: buttons,
+        });
+        
+        // Find and update the lobby message with game table
         try {
             const messages = await channel.messages.fetch({ limit: 10 });
             const lobbyMessage = messages.find(
@@ -705,34 +737,14 @@ class Blackjack {
             );
             if (lobbyMessage) {
                 await lobbyMessage.edit({
-                    embeds: [startedEmbed],
+                    embeds: [embed], // Use the actual game embed (shows table)
                     components: [],
                 });
+                gameData.gameMessageId = lobbyMessage.id; // Store this as the main message to update
             }
         } catch (error) {
             console.log("Could not update lobby message");
         }
-
-        // Create a thread for the game
-        const gameMessage = await channel.send({
-            embeds: [embed],
-            components: [],
-        });
-        const thread = await gameMessage.startThread({
-            name: `🃏 Blackjack Game - ${gameData.players
-                .map((p) => p.name)
-                .join(", ")}`,
-            autoArchiveDuration: 60,
-        });
-
-        // Store thread info and send initial message to thread
-        gameData.threadId = thread.id;
-        gameData.gameMessageId = gameMessage.id;
-        gameData.channelId = channel.id;
-        gameData.threadGameMessage = await thread.send({
-            embeds: [embed],
-            components: buttons,
-        });
 
         // Check if game ended immediately (all blackjacks)
         if (gameData.gameOver) {
@@ -754,19 +766,37 @@ class Blackjack {
             dealerId,
             gameOver: false,
             startTime: Date.now(),
-            serverId: null
+            serverId: null,
         };
     }
 
     createDeck() {
         if (!this.baseDeck) {
             const suits = ["♠", "♥", "♦", "♣"];
-            const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+            const ranks = [
+                "A",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "J",
+                "Q",
+                "K",
+            ];
             this.baseDeck = [];
 
             for (const suit of suits) {
                 for (const rank of ranks) {
-                    this.baseDeck.push({ rank, suit, value: this.getCardValue(rank) });
+                    this.baseDeck.push({
+                        rank,
+                        suit,
+                        value: this.getCardValue(rank),
+                    });
                 }
             }
         }
@@ -775,7 +805,7 @@ class Blackjack {
     }
 
     shuffleDeck(deck) {
-        const CryptoRandom = require('../cryptoRandom');
+        const CryptoRandom = require("../cryptoRandom");
         return CryptoRandom.shuffle(deck);
     }
 
@@ -808,6 +838,7 @@ class Blackjack {
         );
         if (allPlayersDone) {
             gameData.phase = "dealer";
+            gameData.currentPlayer = null;
             this.playDealer(gameData);
         }
     }
@@ -839,7 +870,10 @@ class Blackjack {
             lobby.waitTime - Math.floor((Date.now() - lobby.startTime) / 1000)
         );
         const playerList = lobby.players
-            .map((p) => `${this.sanitizeText(p.name)}: ${parseInt(p.bet)} coins 🪙`)
+            .map(
+                (p) =>
+                    `${this.sanitizeText(p.name)}: ${parseInt(p.bet)} coins 🪙`
+            )
             .join("\n");
 
         return new EmbedBuilder()
@@ -878,11 +912,11 @@ class Blackjack {
             .map((p) => {
                 if (showAllHands) {
                     // Show full hand
-                    return `**${this.sanitizeText(p.name)}**: ${this.formatHand(p.hand)} (${
-                        parseInt(p.score)
-                    })${p.blackjack ? " 🎉" : ""}${p.bust ? " 💥" : ""}${
-                        p.stand ? " ✋" : ""
-                    }`;
+                    return `**${this.sanitizeText(p.name)}**: ${this.formatHand(
+                        p.hand
+                    )} (${parseInt(p.score)})${p.blackjack ? " 🎉" : ""}${
+                        p.bust ? " 💥" : ""
+                    }${p.stand ? " ✋" : ""}`;
                 } else {
                     // Hide hand, show only status
                     const cardCount = p.hand.length;
@@ -893,7 +927,9 @@ class Blackjack {
                         : p.stand
                         ? " ✋"
                         : "";
-                    return `**${this.sanitizeText(p.name)}**: [${parseInt(cardCount)} cards]${status}`;
+                    return `**${this.sanitizeText(p.name)}**: [${parseInt(
+                        cardCount
+                    )} cards]${status}`;
                 }
             })
             .join("\n");
@@ -1037,7 +1073,10 @@ class Blackjack {
                 // Double the bet
                 if (freshGameData.bets && freshGameData.bets[userId]) {
                     const additionalBet = freshGameData.bets[userId];
-                    const canDouble = await currencyManager.subtractBalance(userId, additionalBet);
+                    const canDouble = await currencyManager.subtractBalance(
+                        userId,
+                        additionalBet
+                    );
                     if (canDouble) {
                         freshGameData.bets[userId] *= 2;
                     } else {
@@ -1189,19 +1228,25 @@ class Blackjack {
                     payout = betAmount * 2;
                     await currencyManager.addBalance(player.id, payout);
                     const profit = payout - betAmount;
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (${player.score}) +${profit} coins (${newBalance} total)`;
                     winners.push(resultText);
                 } else if (player.score === gameData.dealer.score) {
                     // Push returns bet
                     payout = betAmount;
                     await currencyManager.addBalance(player.id, payout);
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (Push - ${player.score}) ±0 coins (${newBalance} total)`;
                     pushes.push(resultText);
                 } else {
                     // Loss - no payout (already deducted)
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (${player.score}) -${betAmount} coins (${newBalance} total)`;
                     losers.push(resultText);
                 }
@@ -1232,7 +1277,7 @@ class Blackjack {
 
         // Record game outcomes
         this.recordGameOutcome(gameData, winners, losers, pushes);
-        
+
         // Add results to the final game embed
         finalGameEmbed.addFields({
             name: "🎊 Game Results 🪙",
@@ -1433,19 +1478,25 @@ class Blackjack {
                     payout = betAmount * 2;
                     await currencyManager.addBalance(player.id, payout);
                     const profit = payout - betAmount;
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (${player.score}) +${profit} coins (${newBalance} total)`;
                     winners.push(resultText);
                 } else if (player.score === gameData.dealer.score) {
                     // Push returns bet
                     payout = betAmount;
                     await currencyManager.addBalance(player.id, payout);
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (Push - ${player.score}) ±0 coins (${newBalance} total)`;
                     pushes.push(resultText);
                 } else {
                     // Loss - no payout (already deducted)
-                    const newBalance = await currencyManager.getBalance(player.id);
+                    const newBalance = await currencyManager.getBalance(
+                        player.id
+                    );
                     resultText = `${player.name} (${player.score}) -${betAmount} coins (${newBalance} total)`;
                     losers.push(resultText);
                 }
@@ -1531,6 +1582,52 @@ class Blackjack {
         return true;
     }
 
+    async getOrCreateGameThread(channel) {
+        try {
+            // Check database for existing thread
+            const existing = await database.query(
+                'SELECT thread_id FROM channel_threads WHERE channel_id = ? AND game_type = ?',
+                [channel.id, 'blackjack']
+            );
+            
+            if (existing && existing.length > 0) {
+                try {
+                    // Try to fetch existing thread
+                    const thread = await channel.client.channels.fetch(existing[0].thread_id);
+                    if (thread && !thread.archived) {
+                        // Update last_used timestamp
+                        await database.query(
+                            'UPDATE channel_threads SET last_used = CURRENT_TIMESTAMP WHERE channel_id = ?',
+                            [channel.id]
+                        );
+                        return thread;
+                    }
+                } catch (error) {
+                    // Thread doesn't exist anymore, remove from database
+                    await database.query('DELETE FROM channel_threads WHERE channel_id = ?', [channel.id]);
+                }
+            }
+            
+            // Create new thread and persist
+            const gameMessage = await channel.send({ content: "🃏 **Blackjack Games Thread**" });
+            const thread = await gameMessage.startThread({
+                name: `🃏 Blackjack Games`,
+                autoArchiveDuration: 1440 // 24 hours
+            });
+            
+            await database.query(
+                'INSERT INTO channel_threads (channel_id, thread_id, thread_name, game_type) VALUES (?, ?, ?, ?)',
+                [channel.id, thread.id, thread.name, 'blackjack']
+            );
+            
+            return thread;
+        } catch (error) {
+            const secureLogger = require('../secureLogger');
+            secureLogger.error('Error managing game thread', { error: error.message, channelId: channel.id });
+            throw error;
+        }
+    }
+
     sanitizeText(text) {
         if (!text) return "Unknown";
         // Prevent code injection by sanitizing all user input
@@ -1541,37 +1638,39 @@ class Blackjack {
     }
 
     recordGameOutcome(gameData, winners, losers, pushes) {
-        const gameStats = require('../gameStats');
-        
+        const gameStats = require("../gameStats");
+
         // Record outcome for each player
         for (const player of gameData.players) {
             let winnerId = null;
-            if (winners.some(w => w.includes(player.name))) {
+            if (winners.some((w) => w.includes(player.name))) {
                 winnerId = player.id;
-            } else if (pushes.some(p => p.includes(player.name))) {
-                winnerId = 'tie';
+            } else if (pushes.some((p) => p.includes(player.name))) {
+                winnerId = "tie";
             } else {
-                winnerId = 'dealer';
+                winnerId = "dealer";
             }
-            
+
             const outcomeData = {
-                server_id: gameData.serverId || 'unknown',
-                game_type: 'blackjack',
+                server_id: gameData.serverId || "unknown",
+                game_type: "blackjack",
                 player1_id: player.id,
                 player1_name: player.name,
-                player2_id: 'dealer',
-                player2_name: 'Dealer',
+                player2_id: "dealer",
+                player2_name: "Dealer",
                 winner_id: winnerId,
-                game_duration: gameData.startTime ? Math.floor((Date.now() - gameData.startTime) / 1000) : null,
+                game_duration: gameData.startTime
+                    ? Math.floor((Date.now() - gameData.startTime) / 1000)
+                    : null,
                 final_score: {
                     player_hand: player.score,
                     dealer_hand: gameData.dealer.score,
                     bet_amount: gameData.bets ? gameData.bets[player.id] : 0,
-                    blackjack: player.blackjack || false
+                    blackjack: player.blackjack || false,
                 },
-                game_mode: gameData.isSinglePlayer ? 'single' : 'multiplayer'
+                game_mode: gameData.isSinglePlayer ? "single" : "multiplayer",
             };
-            
+
             gameStats.recordOutcome(outcomeData);
         }
     }
