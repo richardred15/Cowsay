@@ -67,7 +67,7 @@ describe('Shop Integration Tests', () => {
       
       // Add to inventory
       await database.query(
-        'INSERT INTO user_inventory (user_id, item_id, acquisition_method) VALUES (?, ?, ?)',
+        'INSERT INTO user_inventory (user_id, item_id, acquired_method) VALUES (?, ?, ?)',
         [userId, itemId, 'purchase']
       );
       
@@ -98,7 +98,7 @@ describe('Shop Integration Tests', () => {
       
       // Add item to inventory
       await database.query(
-        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquisition_method) VALUES (?, ?, ?)',
+        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquired_method) VALUES (?, ?, ?)',
         [userId, itemId, 'purchase']
       );
       
@@ -116,13 +116,13 @@ describe('Shop Integration Tests', () => {
       
       // First purchase
       await database.query(
-        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquisition_method) VALUES (?, ?, ?)',
+        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquired_method) VALUES (?, ?, ?)',
         [userId, itemId, 'purchase']
       );
       
       // Attempt duplicate
       await database.query(
-        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquisition_method) VALUES (?, ?, ?)',
+        'INSERT IGNORE INTO user_inventory (user_id, item_id, acquired_method) VALUES (?, ?, ?)',
         [userId, itemId, 'purchase']
       );
       
@@ -154,7 +154,7 @@ describe('Shop Integration Tests', () => {
       
       // Add to recipient inventory
       await database.query(
-        'INSERT INTO user_inventory (user_id, item_id, acquisition_method, source_user_id) VALUES (?, ?, ?, ?)',
+        'INSERT INTO user_inventory (user_id, item_id, acquired_method, gifted_by) VALUES (?, ?, ?, ?)',
         [recipientId, itemId, 'gift', senderId]
       );
       
