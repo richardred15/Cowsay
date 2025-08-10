@@ -177,6 +177,7 @@ class CurrencyManager {
                 amount: bonus,
                 newBalance: player.balance + bonus,
                 boosted: hasBoost,
+                message: "success",
             };
         } catch (error) {
             const secureLogger = require("./secureLogger");
