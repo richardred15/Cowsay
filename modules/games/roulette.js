@@ -14,6 +14,11 @@ const currencyManager = require("../currencyManager");
 class Roulette extends BaseGame {
     constructor() {
         super('roulette');
+        
+        // Register interaction handlers
+        this.registerHandler('bet', this.handleBet.bind(this));
+        this.registerHandler('number', this.handleNumberBet.bind(this));
+        
         // European roulette wheel order (clockwise from 0)
         this.wheelOrder = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
@@ -151,9 +156,8 @@ class Roulette extends BaseGame {
         return [row1, row2];
     }
 
-    async handleInteraction(interaction, gameData, gameKey, gameManager) {
-        if (!interaction.customId.startsWith("roulette_")) return false;
-
+    // Legacy interaction handler - now uses BaseGame unified system
+    async handleGameInteraction(interaction, gameData, gameKey, gameManager) {
         const userId = interaction.user.id;
 
         // Check if betting phase is still active
@@ -163,32 +167,24 @@ class Roulette extends BaseGame {
             if (gameData.phase === "betting") {
                 gameData.phase = "spinning";
                 gameManager.activeGames.set(gameKey, gameData);
-                await this.spinWheel(
-                    interaction,
-                    gameData,
-                    gameManager,
-                    gameKey
-                );
+                await this.spinWheel(interaction, gameData, gameManager, gameKey);
             }
             return true;
         }
 
+        // Handle bet actions (red, black, even, odd, low, high, number)
         if (interaction.customId.startsWith("roulette_bet_")) {
-            return await this.handleBet(
-                interaction,
-                gameData,
-                gameKey,
-                gameManager
-            );
+            const betType = interaction.customId.split("_")[2];
+            if (betType === "number") {
+                return await this.showNumberSelection(interaction);
+            }
+            return await this.handleBet(interaction, gameData, gameKey, gameManager, betType);
         }
         
+        // Handle number selection
         if (interaction.customId.startsWith("roulette_number_")) {
-            return await this.handleNumberBet(
-                interaction,
-                gameData,
-                gameKey,
-                gameManager
-            );
+            const number = parseInt(interaction.customId.split("_")[2]);
+            return await this.handleNumberBet(interaction, gameData, gameKey, gameManager, number);
         }
 
         return false;
@@ -207,11 +203,22 @@ class Roulette extends BaseGame {
         );
     }
 
-    async handleBet(interaction, gameData, gameKey, gameManager) {
-        const betType = interaction.customId.split("_")[2];
+    async handleBet(interaction, gameData, gameKey, gameManager, betType = null) {
+        // Extract bet type if not provided
+        if (!betType) {
+            betType = interaction.customId.split("_")[2];
+        }
 
+        // Handle number selection
         if (betType === "number") {
             return await this.showNumberSelection(interaction);
+        }
+
+        // Validate bet type
+        if (!this.betTypes[betType]) {
+            console.log(`Invalid bet type: '${betType}' from customId: '${interaction.customId}'`);
+            await interaction.reply({ content: "❌ Invalid bet type!", flags: MessageFlags.Ephemeral });
+            return true;
         }
 
         return await gameUI.requestBetAmount(
@@ -276,8 +283,11 @@ class Roulette extends BaseGame {
 
 
 
-    async handleNumberBet(interaction, gameData, gameKey, gameManager) {
-        const number = parseInt(interaction.customId.split("_")[2]);
+    async handleNumberBet(interaction, gameData, gameKey, gameManager, number = null) {
+        // Extract number if not provided
+        if (number === null) {
+            number = parseInt(interaction.customId.split("_")[2]);
+        }
         
         // Delete the number selection message
         if (this.numberSelectionInteractions) {

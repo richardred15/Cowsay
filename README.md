@@ -29,7 +29,7 @@ A feature-rich Discord bot that generates ASCII art, plays games, provides AI-po
 
 ### 🛒 Shop & Inventory System
 - **Premium Characters**: Unlock exclusive ASCII characters with coins
-- **Boost Items**: Daily Boost (1000 coins), Streak Shield (1500 coins)
+- **Boost Items**: Daily Boost (1000 coins), Streak Shield (1000 coins)
 - **Inventory Management**: Complete ownership tracking with acquisition history
 - **Gifting System**: Send items to other users with 10% fee
 - **Wishlist System**: Public wishlists with integrated gifting

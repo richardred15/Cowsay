@@ -198,109 +198,99 @@ class GameManager {
     async handleButtonInteraction(interaction) {
         const userId = interaction.user.id;
         
-        // Only handle game-related buttons, ignore pagination and other system buttons
+        // Only handle game-related buttons
         const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_', 'roulette_'];
         const isGameButton = gameButtonPrefixes.some(prefix => interaction.customId.startsWith(prefix)) ||
                             ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(interaction.customId);
         
-        if (!isGameButton) {
-            return false; // Let other handlers process non-game buttons
-        }
+        if (!isGameButton) return false;
         
-        // Check for battleship interactions first
-        if (interaction.customId.startsWith('bs_')) {
-            return await battleship.handleInteraction(interaction, null, null, this);
-        }
+        // Find game by interaction prefix
+        const gameType = this.getGameTypeFromInteraction(interaction);
+        const game = this.games[gameType];
         
-        // Check for balatro interactions
-        if (interaction.customId.startsWith('bal_')) {
-            return await balatro.handleInteraction(interaction, null, null, this);
-        }
+        if (!game) return false;
         
-        // Check for pong interactions
-        if (interaction.customId.startsWith('pong_')) {
-            return await pong.handleInteraction(interaction, null, null, this);
-        }
-        
-        // Check for roulette interactions
-        if (interaction.customId.startsWith('roulette_')) {
-            // Find roulette game for this channel
+        // Special handling for games that need channel-based lookup (roulette)
+        if (gameType === 'roulette') {
             const channelId = interaction.channel.id;
             for (const [key, data] of this.activeGames) {
                 if (data && data.type === 'roulette' && data.channelId === channelId) {
-                    return await roulette.handleInteraction(interaction, data, key, this);
+                    return await game.handleInteraction(interaction, data, key, this);
                 }
             }
             await interaction.reply({ content: "No active roulette game found!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
         
-        // Check for blackjack lobby interactions first (join/cancel/start)
-        if (interaction.customId === 'bj_join' || interaction.customId === 'bj_cancel' || interaction.customId === 'bj_start' || interaction.customId.startsWith('bj_join_bet_')) {
-            return await blackjack.handleInteraction(interaction, null, null, this);
+        // Special handling for lobby-based games (blackjack)
+        if (['bj_join', 'bj_cancel', 'bj_start'].includes(interaction.customId) || 
+            interaction.customId.startsWith('bj_join_bet_')) {
+            return await game.handleInteraction(interaction, null, null, this);
         }
         
-        // Check for view hand button (should work for any player)
+        // Special handling for bj_game_view - find game by channel
         if (interaction.customId === 'bj_game_view') {
-            // Find the blackjack game this user is part of
+            const channelId = interaction.channel.id;
             for (const [key, data] of this.activeGames) {
-                if (data && data.type === 'blackjack' && data.players && 
-                    Array.isArray(data.players) && data.players.some(p => p.id === userId)) {
-                    return await blackjack.handleViewHand(interaction, data, key, this);
+                if (data && data.type === 'blackjack' && (data.channelId === channelId || key.includes(channelId))) {
+                    return await game.handleInteraction(interaction, data, key, this);
                 }
             }
-            await interaction.reply({ content: "You're not in any active blackjack game!", flags: require('discord.js').MessageFlags.Ephemeral });
+        }
+        
+        // Standard game lookup by user
+        const { gameData, gameKey } = this.findUserGame(userId, gameType);
+        
+        if (!gameData) {
+            await interaction.reply({ content: "No active game found!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
         
-        let gameData = null;
-        let gameKey = null;
-
+        return await game.handleInteraction(interaction, gameData, gameKey, this);
+    }
+    
+    getGameTypeFromInteraction(interaction) {
+        const customId = interaction.customId;
+        if (customId.startsWith('bs_')) return 'battleship';
+        if (customId.startsWith('bal_')) return 'balatro';
+        if (customId.startsWith('pong_')) return 'pong';
+        if (customId.startsWith('bj_') || ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(customId)) return 'blackjack';
+        if (customId.startsWith('ttt_')) return 'tictactoe';
+        if (customId.startsWith('roulette_')) return 'roulette';
+        return null;
+    }
+    
+    findUserGame(userId, gameType) {
         // Use efficient user-to-game mapping
-        if (!this.userGameMap) {
-            this.userGameMap = new Map();
-        }
+        if (!this.userGameMap) this.userGameMap = new Map();
         
         // Check cache first
         const cachedGameKey = this.userGameMap.get(userId);
         if (cachedGameKey && this.activeGames.has(cachedGameKey)) {
-            gameData = this.activeGames.get(cachedGameKey);
-            gameKey = cachedGameKey;
-        } else {
-            // Efficient game lookup with early exit
-            for (const [key, data] of this.activeGames) {
-                if (!data) continue;
-                
-                if (data.type === 'blackjack') {
-                    if ((data.phase === 'setup' && data.creator === userId) || 
-                        (data.players?.some?.(p => p.id === userId))) {
-                        gameData = data;
-                        gameKey = key;
-                        this.userGameMap.set(userId, key);
-                        break;
-                    }
-                } else if (key.includes(userId)) {
-                    gameData = data;
-                    gameKey = key;
-                    this.userGameMap.set(userId, key);
-                    break;
-                }
+            const gameData = this.activeGames.get(cachedGameKey);
+            if (gameData.type === gameType) {
+                return { gameData, gameKey: cachedGameKey };
             }
         }
         
-        if (!gameData) {
-            console.log(`DEBUG: No game found for user ${userId}. Active games:`, Array.from(this.activeGames.keys()));
-            await interaction.reply({ content: "No active game found!", flags: require('discord.js').MessageFlags.Ephemeral });
-            return true;
+        // Search for user's game
+        for (const [key, data] of this.activeGames) {
+            if (!data || data.type !== gameType) continue;
+            
+            if (data.type === 'blackjack') {
+                if ((data.phase === 'setup' && data.creator === userId) || 
+                    (data.players?.some?.(p => p.id === userId))) {
+                    this.userGameMap.set(userId, key);
+                    return { gameData: data, gameKey: key };
+                }
+            } else if (key.includes(userId)) {
+                this.userGameMap.set(userId, key);
+                return { gameData: data, gameKey: key };
+            }
         }
-
-        // Route to appropriate game handler
-        const game = this.games[gameData.type];
-        if (game) {
-            return await game.handleInteraction(interaction, gameData, gameKey, this);
-        }
-
-        return false;
+        
+        return { gameData: null, gameKey: null };
     }
 }
 

@@ -173,7 +173,7 @@
 
 #### 4.1 Boost System Implementation ✅
 - **Daily Boost**: 2x daily bonus multiplier for 7 days (1000 coins)
-- **Streak Shield**: Protects win streak from one loss (1500 coins)
+- **Streak Shield**: Protects win streak from one loss (1000 coins)
 - **Database Schema v8→v9**: Added daily_boost_expires, streak_shield_count columns
 - **Automatic Activation**: Boosts activate immediately upon purchase
 - **Smart Purchasing**: Prevents duplicate characters, allows stackable shields

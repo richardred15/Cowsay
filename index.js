@@ -150,7 +150,12 @@ client.on("interactionCreate", async (interaction) => {
             user: interaction.user.username,
         });
         if (interaction.commandName === "battleship") {
-            Logger.info("Battleship slash command received", {
+            Logger.error("Failed to start battleship game");
+            await interaction.reply({
+                content: "Battleship is down for maintenance!",
+                flags: MessageFlags.Ephemeral,
+            });
+            /* Logger.info("Battleship slash command received", {
                 user: interaction.user.username,
             });
             const result = await gameManager.startGame(
@@ -163,7 +168,7 @@ client.on("interactionCreate", async (interaction) => {
                     content: "Failed to start battleship game!",
                     flags: MessageFlags.Ephemeral,
                 });
-            }
+            } */
         } else if (interaction.commandName === "balatro") {
             Logger.info("Balatro slash command received", {
                 user: interaction.user.username,
@@ -253,7 +258,9 @@ client.on("interactionCreate", async (interaction) => {
             }
 
             // Try gameUI first for bet interactions
-            const gameUIHandled = await gameUI.handleGameUIInteraction(interaction);
+            const gameUIHandled = await gameUI.handleGameUIInteraction(
+                interaction
+            );
             if (gameUIHandled) {
                 return;
             }
@@ -472,7 +479,7 @@ client.on("messageCreate", async (message) => {
                 },
                 {
                     name: "⚡ Boosts (Coming Soon)",
-                    value: "• **Daily Boost** (1000 coins) - Double daily bonus for 7 days\n• **Streak Shield** (1500 coins) - Protect win streak from one loss",
+                    value: "• **Daily Boost** (1000 coins) - Double daily bonus for 7 days\n• **Streak Shield** (1000 coins) - Protect win streak from one loss",
                     inline: false,
                 },
                 {
@@ -1898,7 +1905,7 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
-    if (message.content.startsWith("!chat ")) {
+    /* if (message.content.startsWith("!chat ")) {
         const question = message.content.slice(6).trim();
         if (!question) {
             message.reply(
@@ -1941,7 +1948,7 @@ client.on("messageCreate", async (message) => {
             );
         }
         return;
-    }
+    } */
 
     if (message.content === "!rimshot") {
         const rimshot = `    🥁 *BA-DUM-TSS* 🥁
@@ -1987,7 +1994,7 @@ client.on("messageCreate", async (message) => {
                 headers: { Accept: "application/json" },
             });
             const data = await response.json();
-            const characters = characterManager.getCharacters();
+            const characters = await characterManager.getCharacters();
             const randomChar =
                 characters[Math.floor(Math.random() * characters.length)];
             const result = characterManager.generateAscii(
@@ -2021,7 +2028,7 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
-    if (message.content.startsWith("!cowsay")) {
+    /* if (message.content.startsWith("!cowsay")) {
         const text = message.content.slice(8).trim();
         const validation = SecurityUtils.validateInput(text, 500);
 
@@ -2064,7 +2071,7 @@ client.on("messageCreate", async (message) => {
             );
         }
         return;
-    }
+    } */
 
     // Auto-reply to cowsay mentions (check before character commands)
     if (await autoReply.shouldReply(message, client.user.id)) {
@@ -2110,7 +2117,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Handle all character commands
-    for (const char of characterManager.getCharacters()) {
+    for (const char of await characterManager.getCharacters()) {
         const cleanName = char.replace(/[^a-zA-Z0-9]/g, "");
         const command = `!${cleanName}say`;
         if (message.content.startsWith(command)) {

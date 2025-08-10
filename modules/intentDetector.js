@@ -32,28 +32,33 @@ class IntentDetector {
     }
 
     async getMode(serverId) {
-        if (!serverId) return 'LLM'; // Default for DMs
-        
+        if (!serverId) return "LLM"; // Default for DMs
+
         if (this.cache.has(serverId)) {
             return this.cache.get(serverId);
         }
-        
+
         try {
-            const sql = 'SELECT intent_detection_mode FROM server_config WHERE server_id = ?';
+            const sql =
+                "SELECT intent_detection_mode FROM server_config WHERE server_id = ?";
             const rows = await database.query(sql, [serverId]);
-            
-            const mode = rows.length > 0 ? rows[0].intent_detection_mode : 'LLM';
+
+            const mode =
+                rows.length > 0 ? rows[0].intent_detection_mode : "LLM";
             this.cache.set(serverId, mode);
             return mode;
         } catch (error) {
-            Logger.error('Failed to get intent detection config', error.message);
-            return 'LLM'; // Default fallback
+            Logger.error(
+                "Failed to get intent detection config",
+                error.message
+            );
+            return "LLM"; // Default fallback
         }
     }
 
     async toggle(serverId) {
-        if (!serverId) return 'LLM'; // Can't toggle DMs
-        
+        if (!serverId) return "LLM"; // Can't toggle DMs
+
         try {
             const modes = ["EMBEDDING", "REGEX", "LLM"];
             const currentMode = await this.getMode(serverId);
@@ -62,7 +67,9 @@ class IntentDetector {
 
             // If switching to EMBEDDING mode but model failed to load, skip to next mode
             if (newMode === "EMBEDDING" && !this.model) {
-                Logger.warn("Transformer model not available, skipping EMBEDDING mode");
+                Logger.warn(
+                    "Transformer model not available, skipping EMBEDDING mode"
+                );
                 newMode = modes[(currentIndex + 2) % modes.length];
             }
 
@@ -71,13 +78,15 @@ class IntentDetector {
                         ON DUPLICATE KEY UPDATE 
                         intent_detection_mode = VALUES(intent_detection_mode), 
                         updated_at = CURRENT_TIMESTAMP`;
-            
+
             await database.query(sql, [serverId, newMode]);
             this.cache.set(serverId, newMode);
-            Logger.info(`Intent detection switched to ${newMode} mode for server ${serverId}`);
+            Logger.info(
+                `Intent detection switched to ${newMode} mode for server ${serverId}`
+            );
             return newMode;
         } catch (error) {
-            Logger.error('Failed to toggle intent detection', error.message);
+            Logger.error("Failed to toggle intent detection", error.message);
             return await this.getMode(serverId);
         }
     }
@@ -211,12 +220,14 @@ class IntentDetector {
 
         const contextText = recentContext
             .slice(-5, -1)
-            .map((msg) => `${msg.author}: ${msg.content.substring(0, 100)}`)
+            .map(
+                (msg) => `${msg.author}: ${msg.content.substring(0, 100)}[...]`
+            )
             .join("\n");
 
         Logger.debug("Intent detection prompt", { contextText });
 
-        const prompt = `You are an intent detection system. Determine if the following message is directed at Cowsay or not. Use the recent context to understand the conversation flow. If there is little context, assume it is NOT_DIRECTED. If the message is a direct response to Cowsay or shows interest in continuing the conversation, respond with DIRECTED. If it contains dismissive phrases, respond with NOT_DIRECTED. For context, cowsay is a cow themed AI assistant with many commands and features. It is not a real cow, but a fun AI that helps users with various tasks. The server has many people in it, and not every question is directed at cowsay.
+        const prompt = `You are an intent detection system. Determine if the following message is directed at Cowsay or not. Use the recent context to understand the conversation flow. If there is no context, assume it is NOT_DIRECTED. If the message is a direct response to Cowsay or shows interest in continuing the conversation, respond with DIRECTED. If it contains dismissive phrases, respond with NOT_DIRECTED. For context, cowsay is a cow themed AI assistant with many commands and features. It is not a real cow, but a fun AI that helps users with various tasks. The server has many people in it, and not every question is directed at cowsay.
         
         Context:
         ${contextText}

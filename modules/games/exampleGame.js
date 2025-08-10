@@ -1,3 +1,16 @@
+/**
+ * EXAMPLE GAME - DEVELOPER TEMPLATE
+ * 
+ * This file serves as a template/example for developers creating new games.
+ * It demonstrates the proper patterns for:
+ * - Extending BaseGame
+ * - Using gameUI for betting
+ * - Handling interactions
+ * - Recording game outcomes
+ * 
+ * DO NOT DELETE - This is documentation, not production code.
+ */
+
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require("discord.js");
 const BaseGame = require("./baseGame");
 const gameUI = require("./gameUI");

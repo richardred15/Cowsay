@@ -39,7 +39,10 @@ class Blackjack extends BaseGame {
                 .setStyle(ButtonStyle.Secondary)
         );
 
-        const reply = await message.reply({ embeds: [embed], components: [buttons] });
+        const reply = await message.reply({
+            embeds: [embed],
+            components: [buttons],
+        });
         return {
             gameKey: `bj_setup_${message.author.id}`,
             gameData: {
@@ -76,9 +79,19 @@ class Blackjack extends BaseGame {
         }
 
         if (interaction.customId.startsWith("bj_wait_")) {
-            const waitTime = parseInt(interaction.customId.split("_")[2]);
-            const isDealer = interaction.customId.includes("dealer");
-            const betAmount = parseInt(interaction.customId.split("_")[3]);
+            const parts = interaction.customId.split("_");
+            const waitTime = parseInt(parts[2]);
+            const isDealer = parts[3] === "dealer";
+            const betAmount = parseInt(parts[4]);
+
+            // Acknowledge the interaction first
+            await interaction.deferUpdate();
+
+            // Delete the wait time selection message
+            try {
+                await interaction.message.delete();
+            } catch (error) {}
+
             return await this.createLobby(
                 interaction,
                 waitTime,
@@ -92,8 +105,6 @@ class Blackjack extends BaseGame {
             return await this.joinLobby(interaction);
         }
 
-
-
         if (interaction.customId === "bj_cancel") {
             return await this.cancelLobby(interaction);
         }
@@ -103,6 +114,14 @@ class Blackjack extends BaseGame {
         }
 
         if (interaction.customId.startsWith("bj_game_")) {
+            if (interaction.customId === "bj_game_view") {
+                return await this.handleViewHand(
+                    interaction,
+                    gameData,
+                    gameKey,
+                    gameManager
+                );
+            }
             return await this.handleGameAction(
                 interaction,
                 gameData,
@@ -114,13 +133,16 @@ class Blackjack extends BaseGame {
         return false;
     }
 
-
-
-    async startSinglePlayer(interaction, gameManager, betAmount, setupGameData) {
+    async startSinglePlayer(
+        interaction,
+        gameManager,
+        betAmount,
+        setupGameData
+    ) {
         try {
             const setupKey = `bj_setup_${interaction.user.id}`;
             const gameKey = `blackjack_${interaction.user.id}`;
-            
+
             const canAfford = await currencyManager.subtractBalance(
                 interaction.user.id,
                 betAmount
@@ -129,7 +151,7 @@ class Blackjack extends BaseGame {
                 await interaction.update({
                     content: "You don't have enough coins for this bet!",
                     embeds: [],
-                    components: []
+                    components: [],
                 });
                 return true;
             }
@@ -181,36 +203,43 @@ class Blackjack extends BaseGame {
             await interaction.update({
                 content: "An error occurred starting the game.",
                 embeds: [],
-                components: []
+                components: [],
             });
             return true;
         }
     }
 
     async showBetSelection(interaction, isDealer, gameManager) {
-        const gameData = gameManager ? gameManager.activeGames.get(`bj_setup_${interaction.user.id}`) : null;
+        const gameData = gameManager
+            ? gameManager.activeGames.get(`bj_setup_${interaction.user.id}`)
+            : null;
         const isMultiplayer = gameData && gameData.mode === "multiplayer";
-        
+
         return await gameUI.requestBetAmount(
             interaction,
             this.handleBetPlaced.bind(this),
-            { isDealer, gameManager, gameKey: `bj_setup_${interaction.user.id}` },
+            {
+                isDealer,
+                gameManager,
+                gameKey: `bj_setup_${interaction.user.id}`,
+            },
             {
                 title: "Blackjack - Select Your Bet",
                 description: "Choose your bet amount:",
-                amounts: [10, 25, 50, 100],
                 minBet: 10,
-                updateOriginal: !isMultiplayer
+                updateOriginal: !isMultiplayer,
             }
         );
     }
 
     async handleBetPlaced(betInteraction, betAmount, payload) {
         const { isDealer, gameManager, gameKey } = payload;
-        
+
         // Get game data from gameManager
-        const gameData = gameManager ? gameManager.activeGames.get(gameKey) : null;
-        
+        const gameData = gameManager
+            ? gameManager.activeGames.get(gameKey)
+            : null;
+
         if (gameData && gameData.mode === "single") {
             return await this.startSinglePlayer(
                 betInteraction,
@@ -219,18 +248,50 @@ class Blackjack extends BaseGame {
                 gameData
             );
         }
-        
-        // Go directly to lobby creation with default 60 second wait time
-        return await this.createLobby(
+
+        // Show wait time selection for multiplayer
+        return await this.showWaitTimeSelection(
             betInteraction,
-            60, // default wait time
             isDealer,
-            betAmount,
-            gameManager
+            betAmount
         );
     }
 
+    async showWaitTimeSelection(interaction, isDealer, betAmount) {
+        const embed = new EmbedBuilder()
+            .setTitle("🃏 Blackjack - Wait Time")
+            .setDescription(
+                "How long should we wait for other players to join?"
+            )
+            .setColor(0x00ae86);
 
+        const buttons = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(
+                    `bj_wait_30_${isDealer ? "dealer" : "player"}_${betAmount}`
+                )
+                .setLabel("30 seconds")
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId(
+                    `bj_wait_60_${isDealer ? "dealer" : "player"}_${betAmount}`
+                )
+                .setLabel("60 seconds")
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId(
+                    `bj_wait_120_${isDealer ? "dealer" : "player"}_${betAmount}`
+                )
+                .setLabel("2 minutes")
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.channel.send({
+            embeds: [embed],
+            components: [buttons],
+        });
+        return true;
+    }
 
     async createLobby(interaction, waitTime, isDealer, betAmount, gameManager) {
         const channelId = interaction.channel.id;
@@ -238,10 +299,18 @@ class Blackjack extends BaseGame {
         const setupGameData = gameManager.activeGames.get(setupKey);
 
         if (this.lobbies.has(channelId)) {
-            await interaction.reply({
-                content: "There's already a blackjack lobby in this channel!",
-                flags: MessageFlags.Ephemeral,
-            });
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    content:
+                        "There's already a blackjack lobby in this channel!",
+                });
+            } else {
+                await interaction.reply({
+                    content:
+                        "There's already a blackjack lobby in this channel!",
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
             return true;
         }
 
@@ -252,10 +321,16 @@ class Blackjack extends BaseGame {
                 betAmount
             );
             if (!canAfford) {
-                await interaction.reply({
-                    content: "You don't have enough coins for this bet!",
-                    flags: MessageFlags.Ephemeral,
-                });
+                if (interaction.deferred) {
+                    await interaction.editReply({
+                        content: "You don't have enough coins for this bet!",
+                    });
+                } else {
+                    await interaction.reply({
+                        content: "You don't have enough coins for this bet!",
+                        flags: MessageFlags.Ephemeral,
+                    });
+                }
                 return true;
             }
         } catch (error) {
@@ -264,10 +339,16 @@ class Blackjack extends BaseGame {
                 error: error.message,
                 userId: interaction.user.id,
             });
-            await interaction.reply({
-                content: "Error processing your bet. Please try again.",
-                flags: MessageFlags.Ephemeral,
-            });
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    content: "Error processing your bet. Please try again.",
+                });
+            } else {
+                await interaction.reply({
+                    content: "Error processing your bet. Please try again.",
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
             return true;
         }
 
@@ -292,7 +373,6 @@ class Blackjack extends BaseGame {
         };
 
         this.lobbies.set(channelId, lobby);
-        lobby.countdownInterval = null;
 
         const embed = this.createLobbyEmbed(lobby);
         const buttons = new ActionRowBuilder().addComponents(
@@ -310,21 +390,34 @@ class Blackjack extends BaseGame {
                 .setStyle(ButtonStyle.Danger)
         );
 
+        let lobbyMessage;
         if (setupGameData && setupGameData.originalMessage) {
             try {
-                await setupGameData.originalMessage.edit({ embeds: [embed], components: [buttons] });
+                lobbyMessage = await setupGameData.originalMessage.edit({
+                    embeds: [embed],
+                    components: [buttons],
+                });
+                lobby.lobbyMessage = lobbyMessage;
             } catch (error) {
-                await interaction.reply({ embeds: [embed], components: [buttons] });
+                lobbyMessage = await interaction.channel.send({
+                    embeds: [embed],
+                    components: [buttons],
+                });
+                lobby.lobbyMessage = lobbyMessage;
             }
         } else {
-            await interaction.reply({ embeds: [embed], components: [buttons] });
+            lobbyMessage = await interaction.channel.send({
+                embeds: [embed],
+                components: [buttons],
+            });
+            lobby.lobbyMessage = lobbyMessage;
         }
 
         // Start countdown timer
-        const countdownInterval = setInterval(async () => {
+        lobby.countdownInterval = setInterval(async () => {
             const currentLobby = this.lobbies.get(channelId);
             if (!currentLobby) {
-                clearInterval(countdownInterval);
+                clearInterval(lobby.countdownInterval);
                 return;
             }
 
@@ -335,7 +428,7 @@ class Blackjack extends BaseGame {
             );
 
             if (timeLeft <= 0) {
-                clearInterval(countdownInterval);
+                clearInterval(lobby.countdownInterval);
                 // Check if dealer lobby has enough players
                 if (currentLobby.isDealer && currentLobby.players.length < 2) {
                     // Cancel lobby and refund all bets
@@ -354,7 +447,7 @@ class Blackjack extends BaseGame {
                         .setColor(0xff0000);
 
                     try {
-                        await interaction.editReply({
+                        await lobby.lobbyMessage.edit({
                             embeds: [cancelEmbed],
                             components: [],
                         });
@@ -387,12 +480,12 @@ class Blackjack extends BaseGame {
             );
 
             try {
-                await interaction.editReply({
+                await lobby.lobbyMessage.edit({
                     embeds: [updatedEmbed],
                     components: [updatedButtons],
                 });
             } catch (error) {
-                clearInterval(countdownInterval);
+                clearInterval(lobby.countdownInterval);
             }
         }, 1000);
 
@@ -436,7 +529,7 @@ class Blackjack extends BaseGame {
                 description: "Choose your bet amount to join:",
                 amounts: [10, 25, 50, 100],
                 minBet: 10,
-                updateOriginal: false
+                updateOriginal: false,
             }
         );
     }
@@ -489,15 +582,13 @@ class Blackjack extends BaseGame {
 
         await interaction.reply({
             content: `✅ Joined game with ${betAmount} coins bet!`,
-            flags: MessageFlags.Ephemeral
+            flags: MessageFlags.Ephemeral,
         });
 
         // Auto-delete after 12 seconds
         gameUI.autoDeleteEphemeral(interaction, 12000);
         return true;
     }
-
-
 
     async cancelLobby(interaction) {
         const channelId = interaction.channel.id;

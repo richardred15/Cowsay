@@ -15,9 +15,15 @@ class LLMService {
     }
 
     async generateResponse(messages, options = {}) {
-        const defaultOptions = { max_tokens: MAX_TOKENS };
+        const defaultOptions = {
+            max_tokens: MAX_TOKENS,
+            reasoning_effort: "none",
+        };
         if (this.llmProvider.supportsTools()) {
-            defaultOptions.tools = [toolManager.getAnimalSayTool()];
+            //const animalSayTool = await toolManager.getAnimalSayTool();
+            const tools = await toolManager.getTools();
+            console.log(tools);
+            defaultOptions.tools = tools;
             defaultOptions.tool_choice = "auto";
         }
 
@@ -31,30 +37,22 @@ class LLMService {
     async processCompletion(completion) {
         const choice = completion.choices[0];
         let answer = choice?.message?.content || "";
-
+        let has_tools = false;
         if (choice?.message?.tool_calls) {
-            for (const toolCall of choice.message.tool_calls) {
-                if (toolCall.function.name === "animalsay") {
-                    try {
-                        const args = JSON.parse(toolCall.function.arguments);
-                        const asciiArt = await toolManager.handleAnimalSay(
-                            args.animal,
-                            args.message
-                        );
-                        answer += `\n\`\`\`\n${asciiArt}\n\`\`\`\n`;
-                    } catch (error) {
-                        console.error("Tool call error:", error);
-                        answer += "\n[ASCII art generation failed]";
-                    }
-                } else {
-                    Logger.debug(`Tool call: ${choice?.message?.tool_calls}`);
-                }
-            }
+            has_tools = true;
+            answer = await toolManager.handleToolCalls(
+                choice.message.tool_calls
+            );
+            console.log(choice?.message?.tool_calls);
         } else {
-            Logger.debug(`Tool call: ${choice?.message?.tool_calls}`);
+            Logger.debug(`Tool call: ${choice?.message}`);
+            console.log(choice?.message);
         }
 
-        return answer || "Sorry, I couldn't generate an answer.";
+        return (
+            answer ||
+            `Sorry, I couldn't generate an answer. Had tools: ${has_tools}`
+        );
     }
 
     truncateResponse(answer) {

@@ -3,6 +3,7 @@ const security = require('../security');
 class BaseGame {
     constructor(gameType) {
         this.gameType = gameType;
+        this.interactionHandlers = new Map();
     }
 
     createBaseGameData(creator, serverId, additionalData = {}) {
@@ -15,6 +16,30 @@ class BaseGame {
             creatorName: this.sanitizePlayerName(creator.displayName),
             ...additionalData
         };
+    }
+
+    // Unified interaction handling
+    async handleInteraction(interaction, gameData, gameKey, gameManager) {
+        if (!interaction.customId.startsWith(`${this.gameType}_`)) return false;
+        
+        const action = interaction.customId.split('_')[1];
+        const handler = this.interactionHandlers.get(action);
+        
+        if (handler) {
+            return await handler.call(this, interaction, gameData, gameKey, gameManager);
+        }
+        
+        // Fallback to legacy handleGameInteraction if implemented
+        if (this.handleGameInteraction) {
+            return await this.handleGameInteraction(interaction, gameData, gameKey, gameManager);
+        }
+        
+        return false;
+    }
+    
+    // Register interaction handlers
+    registerHandler(action, handler) {
+        this.interactionHandlers.set(action, handler);
     }
 
     sanitizePlayerName(name) {

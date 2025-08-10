@@ -14,13 +14,14 @@
         "test:all": "npm run test:security && npm run test:unit && npm run test:integration && npm run test:performance"
     },
     "dependencies": {
-        "discord.js": "^14.0.0",
-        "cowsay": "^1.5.0",
-        "groq-sdk": "^0.3.0",
-        "dotenv": "^16.0.0",
         "@xenova/transformers": "^2.17.2",
-        "ws": "^8.14.0",
-        "mysql2": "^3.6.0"
+        "cowsay": "^1.5.0",
+        "discord.js": "^14.0.0",
+        "dotenv": "^16.0.0",
+        "groq-sdk": "^0.3.0",
+        "mysql2": "^3.6.0",
+        "sync-request": "^6.1.0",
+        "ws": "^8.14.0"
     },
     "devDependencies": {
         "jest": "^29.7.0",

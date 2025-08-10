@@ -14,12 +14,12 @@ class LeaderboardHandler {
     async handleMessage(message) {
         try {
             // Handle leaderboard bot responses
+            const tools = await this.toolManager.getTools();
             if (
                 await handleLeaderboardResponse(
                     message,
                     this.llmProvider,
-                    this.toolManager.getAnimalSayTool(),
-                    this.toolManager.handleAnimalSay
+                    tools
                 )
             ) {
                 return true;
@@ -29,7 +29,7 @@ class LeaderboardHandler {
             await handleLeaderboardCommand(message);
             return false;
         } catch (error) {
-            console.error('Leaderboard handler error:', error.message);
+            console.error("Leaderboard handler error:", error.message);
             return false;
         }
     }
