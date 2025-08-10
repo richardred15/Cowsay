@@ -35,6 +35,19 @@ global.testUtils = {
         channel: { send: jest.fn() },
         reply: jest.fn(),
     }),
+    createMockInteraction: (options = {}) => {
+        const interaction = new MockInteraction();
+
+        if (options.customId) {
+            interaction.customId = options.customId;
+        }
+
+        if (options.user) {
+            interaction.user = { ...interaction.user, ...options.user };
+        }
+
+        return interaction;
+    },
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
