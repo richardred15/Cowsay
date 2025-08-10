@@ -173,11 +173,10 @@ function createMockMessage(options = {}) {
     return message;
 }
 
-module.exports.createMockInteraction = createMockInteraction;
-module.exports.createMockMessage = createMockMessage;
-
 // Export Discord.js-like structure
 module.exports = {
+    createMockInteraction,
+    createMockMessage,
     Client: MockClient,
     GatewayIntentBits: {
         Guilds: 1,
