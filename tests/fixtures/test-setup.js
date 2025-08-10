@@ -24,7 +24,7 @@ beforeAll(async () => {
 
 // Global test utilities
 global.testUtils = {
-    createMockUser: () => ({
+    /* createMockUser: () => ({
         id: "123456789",
         username: "testuser",
         displayName: "Test User",
@@ -47,7 +47,7 @@ global.testUtils = {
         }
 
         return interaction;
-    },
+    }, */
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 

@@ -145,10 +145,40 @@ class MockInteraction {
     }
 }
 
+function createMockInteraction(options = {}) {
+    const interaction = new MockInteraction();
+
+    if (options.customId) {
+        interaction.customId = options.customId;
+    }
+
+    if (options.user) {
+        interaction.user = { ...interaction.user, ...options.user };
+    }
+
+    return interaction;
+}
+
+function createMockMessage(options = {}) {
+    const message = new MockMessage();
+
+    if (options.content) {
+        message.content = options.content;
+    }
+
+    if (options.author) {
+        message.author = { ...message.author, ...options.author };
+    }
+
+    return message;
+}
+
+module.exports.createMockInteraction = createMockInteraction;
+module.exports.createMockMessage = createMockMessage;
+
 // Export Discord.js-like structure
 module.exports = {
     Client: MockClient,
-    Client: MockInteraction,
     GatewayIntentBits: {
         Guilds: 1,
         GuildMessages: 512,
