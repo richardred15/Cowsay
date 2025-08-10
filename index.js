@@ -388,6 +388,21 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    if (message.content.startsWith("!cowsay gif")) {
+        let parts = message.content.split(" ");
+        fetch(
+            "https://richard.works/projects/Roulette/roulette.php?winner=" +
+                parts[2]
+        ).then((response) => {
+            response.text().then((text) => {
+                message.reply(
+                    "https://richard.works/projects/Roulette/" + text
+                );
+            });
+        });
+        return;
+    }
+
     if (message.content === "!cowsay games") {
         const embed = gameManager.createGamesEmbed();
         message.reply({ embeds: [embed] });
