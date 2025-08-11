@@ -77,8 +77,9 @@ client.once("ready", async () => {
     // Load active games from database
     await balatro.loadAllActiveGames();
 
-    // Set client reference for battleship game
+    // Set client reference for games that need it
     battleship.setClient(client);
+    gameManager.setClient(client);
 
     // Register slash commands
     const commands = [
@@ -1177,6 +1178,36 @@ client.on("messageCreate", async (message) => {
             return;
         } else {
             message.reply("Failed to start roulette game!");
+            return;
+        }
+    }
+
+    // Handle !hangman shortcut command
+    if (message.content === "!hangman") {
+        if (await gameManager.startGame(message, "hangman")) {
+            return;
+        } else {
+            message.reply("Failed to start hangman game!");
+            return;
+        }
+    }
+
+    // Handle !baccarat shortcut command
+    if (message.content === "!baccarat") {
+        if (await gameManager.startGame(message, "baccarat")) {
+            return;
+        } else {
+            message.reply("Failed to start baccarat game!");
+            return;
+        }
+    }
+
+    // Handle !unoexpress shortcut command
+    if (message.content === "!unoexpress") {
+        if (await gameManager.startGame(message, "unoexpress")) {
+            return;
+        } else {
+            message.reply("Failed to start UNO Express game!");
             return;
         }
     }

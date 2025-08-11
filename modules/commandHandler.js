@@ -51,6 +51,9 @@ class CommandHandler {
                     "`/battleship` - Battleship (slash command)",
                     "`/balatro` - Balatro poker (slash command)",
                     "`!blackjack <mode> <bet>` - Quick blackjack",
+                    "`!hangman` - Word guessing game with betting",
+                    "`!baccarat` - Classic casino card game",
+                    "`!unoexpress` - Fast-paced multiplayer card game",
                 ],
             },
             {

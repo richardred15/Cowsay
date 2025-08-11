@@ -11,7 +11,12 @@ const BaseGame = require('./games/baseGame');
 class GameManager {
     constructor() {
         this.activeGames = new Map();
-        this.games = { tictactoe, blackjack, battleship, balatro, pong, roulette };
+        this.games = { tictactoe, blackjack, battleship, balatro, pong, roulette, hangman: require('./games/hangman'), baccarat: require('./games/baccarat'), unoexpress: require('./games/unoexpress') };
+        this.client = null;
+    }
+
+    setClient(client) {
+        this.client = client;
     }
 
     deleteGame(gameKey) {
@@ -63,6 +68,21 @@ class GameManager {
                 {
                     name: '🎰 Roulette',
                     value: '`!cowsay play roulette` - European roulette wheel\n• **Multiple bet types**: Red/Black, Even/Odd, Numbers\n• **60-second betting phase** with animated wheel\n• **Payouts**: 1:1 for outside bets, 35:1 for numbers',
+                    inline: false
+                },
+                {
+                    name: '🎯 Hangman',
+                    value: '`!hangman` - Guess the word letter by letter\n• **Betting system**: Choose your wager\n• **6 wrong guesses** maximum\n• **Perfect bonus**: 3x payout for no wrong guesses',
+                    inline: false
+                },
+                {
+                    name: '🎰 Baccarat',
+                    value: '`!baccarat` - Classic casino card game\n• **60-second betting phase**: Player/Banker/Tie\n• **Automatic dealing**: No decisions after betting\n• **Multiple payouts**: 2:1, 1.95:1, 8:1',
+                    inline: false
+                },
+                {
+                    name: '🎯 UNO Express',
+                    value: '`!unoexpress` - Fast-paced card game\n• **2-6 players**: Multiplayer lobby system\n• **7 cards to start**: Faster than regular UNO\n• **Private hands**: DM system for card management',
                     inline: false
                 },
                 {
@@ -215,7 +235,7 @@ class GameManager {
         }
         
         // Only handle game-related buttons
-        const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_', 'roulette_'];
+        const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_', 'roulette_', 'hangman_', 'baccarat_', 'uno_'];
         const isGameButton = gameButtonPrefixes.some(prefix => interaction.customId.startsWith(prefix)) ||
                             ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(interaction.customId);
         
@@ -227,7 +247,7 @@ class GameManager {
         
         if (!game) return false;
         
-        // Special handling for games that need channel-based lookup (roulette)
+        // Special handling for games that need channel-based lookup (roulette, hangman, baccarat)
         if (gameType === 'roulette') {
             const channelId = interaction.channel.id;
             for (const [key, data] of this.activeGames) {
@@ -236,6 +256,40 @@ class GameManager {
                 }
             }
             await interaction.reply({ content: "No active roulette game found!", flags: require('discord.js').MessageFlags.Ephemeral });
+            return true;
+        }
+        
+        if (gameType === 'baccarat') {
+            const channelId = interaction.channel.id;
+            for (const [key, data] of this.activeGames) {
+                if (data && data.type === 'baccarat' && data.channelId === channelId) {
+                    return await game.handleInteraction(interaction, data, key, this);
+                }
+            }
+            await interaction.reply({ content: "No active baccarat game found!", flags: require('discord.js').MessageFlags.Ephemeral });
+            return true;
+        }
+        
+        if (gameType === 'unoexpress') {
+            const channelId = interaction.channel.id;
+            for (const [key, data] of this.activeGames) {
+                if (data && data.type === 'unoexpress' && data.channelId === channelId) {
+                    return await game.handleInteraction(interaction, data, key, this);
+                }
+            }
+            await interaction.reply({ content: "No active UNO Express game found!", flags: require('discord.js').MessageFlags.Ephemeral });
+            return true;
+        }
+        
+        if (gameType === 'hangman') {
+            const userId = interaction.user.id;
+            // Look for playing game first, then setup game
+            for (const [key, data] of this.activeGames) {
+                if (data && data.type === 'hangman' && data.creator === userId && data.phase === 'playing') {
+                    return await game.handleInteraction(interaction, data, key, this);
+                }
+            }
+            await interaction.reply({ content: "No active hangman game found!", flags: require('discord.js').MessageFlags.Ephemeral });
             return true;
         }
         
@@ -274,6 +328,9 @@ class GameManager {
         if (customId.startsWith('bj_') || ['bj_join', 'bj_cancel', 'bj_start', 'bj_game_view'].includes(customId)) return 'blackjack';
         if (customId.startsWith('ttt_')) return 'tictactoe';
         if (customId.startsWith('roulette_')) return 'roulette';
+        if (customId.startsWith('hangman_')) return 'hangman';
+        if (customId.startsWith('baccarat_')) return 'baccarat';
+        if (customId.startsWith('uno_')) return 'unoexpress';
         return null;
     }
     

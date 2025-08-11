@@ -8,7 +8,10 @@ class GameRewards {
             pong: { win: 50, participation: 10, perfect: 75 },
             tictactoe: { win: 30, participation: 5 },
             battleship: { win: 100, participation: 15 },
-            balatro: { base: 25, maxAnte: 150 }
+            balatro: { base: 25, maxAnte: 150 },
+            hangman: { win: 60, participation: 5, perfect: 100 },
+            baccarat: { participation: 5 },
+            unoexpress: { win: 75, participation: 10 }
         };
     }
 
