@@ -13,52 +13,44 @@ const currencyManager = require("../currencyManager");
 class GameUI {
     constructor() {
         this.betRequests = new Map(); // Store callback/payload by request ID
+        this.waitTimeRequests = new Map(); // Store callback/payload by request ID
+        this.customRequests = new Map(); // Store callback/payload by request ID
     }
 
     generateRequestId() {
         return Math.random().toString(36).substring(2, 10);
     }
 
-    async requestBetAmount(interaction, callback, payload = {}, options = {}) {
+    addRequestIdToComponents(components, requestId) {
+        return components.map(row => {
+            const newRow = new ActionRowBuilder();
+            row.components.forEach(component => {
+                const newComponent = ButtonBuilder.from(component)
+                    .setCustomId(`gameUI_custom_${requestId}_${component.data.custom_id}`);
+                newRow.addComponents(newComponent);
+            });
+            return newRow;
+        });
+    }
+
+    async requestCustomAction(interaction, embed, components, callback, payload = {}, options = {}) {
         const requestId = this.generateRequestId();
-        const balance = await currencyManager.getBalance(interaction.user.id);
-        const amounts = options.amounts || [10, 25, 50, 100, 250, 500];
-        const minBet = options.minBet || amounts[0];
-        const useOriginalMessage = options.updateOriginal || false;
-
+        
         // Store callback and payload
-        this.betRequests.set(requestId, { callback, payload, minBet });
-
-        if (balance < minBet) {
-            const embed = new EmbedBuilder()
-                .setTitle("❌ Insufficient Funds")
-                .setDescription(
-                    `You need at least **${minBet}** coins to play.\nYour balance: **${balance}** coins`
-                )
-                .setColor(0xff0000);
-
-            if (useOriginalMessage) {
-                return await interaction.update({
-                    embeds: [embed],
-                    components: [],
-                });
-            } else {
-                return await interaction.reply({
-                    embeds: [embed],
-                    flags: MessageFlags.Ephemeral,
-                });
-            }
+        this.customRequests.set(requestId, { callback, payload });
+        
+        // Modify button custom IDs to include gameUI prefix and request ID
+        const modifiedComponents = this.addRequestIdToComponents(components, requestId);
+        
+        if (options.updateOriginal) {
+            await interaction.update({ embeds: [embed], components: modifiedComponents });
+        } else {
+            await interaction.reply({ embeds: [embed], components: modifiedComponents, flags: MessageFlags.Ephemeral });
+            this.customRequests.get(requestId).originalInteraction = interaction;
         }
+    }
 
-        const embed = new EmbedBuilder()
-            .setTitle(`🎰 ${options.title || "Place Your Bet"}`)
-            .setDescription(
-                `Your balance: **${balance}** coins\n${
-                    options.description || "Choose your bet amount:"
-                }`
-            )
-            .setColor(0x00ae86);
-
+    createBetButtons(amounts, balance, requestId) {
         const row1 = new ActionRowBuilder();
         const row2 = new ActionRowBuilder();
 
@@ -67,7 +59,7 @@ class GameUI {
             const amount = amounts[i];
             row1.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`gameUI_bet_${requestId}_${amount}`)
+                    .setCustomId(`bet_${amount}`)
                     .setLabel(`🪙 ${amount} coins`)
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(balance < amount)
@@ -78,48 +70,90 @@ class GameUI {
             const amount = amounts[i];
             row2.addComponents(
                 new ButtonBuilder()
-                    .setCustomId(`gameUI_bet_${requestId}_${amount}`)
+                    .setCustomId(`bet_${amount}`)
                     .setLabel(`🪙 ${amount} coins`)
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(balance < amount)
             );
         }
 
-        /* row2.addComponents(
-            new ButtonBuilder()
-                .setCustomId(`gameUI_custom_${requestId}`)
-                .setLabel("💰 Custom")
-                .setStyle(ButtonStyle.Secondary)
-        ); */
+        return [row1, row2];
+    }
 
-        if (useOriginalMessage) {
-            await interaction.update({
-                embeds: [embed],
-                components: [row1, row2],
-            });
-        } else {
-            await interaction.reply({
-                embeds: [embed],
-                components: [row1, row2],
-                flags: MessageFlags.Ephemeral,
-            });
-            this.betRequests.get(requestId).originalInteraction = interaction;
+    async requestBetAmount(interaction, callback, payload = {}, options = {}) {
+        const balance = await currencyManager.getBalance(interaction.user.id);
+        const amounts = options.amounts || [10, 25, 50, 100, 250, 500];
+        const minBet = options.minBet || amounts[0];
+
+        if (balance < minBet) {
+            const embed = new EmbedBuilder()
+                .setTitle("❌ Insufficient Funds")
+                .setDescription(
+                    `You need at least **${minBet}** coins to play.\nYour balance: **${balance}** coins`
+                )
+                .setColor(0xff0000);
+
+            if (options.updateOriginal) {
+                return await interaction.update({ embeds: [embed], components: [] });
+            } else {
+                return await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+            }
         }
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🎰 ${options.title || "Place Your Bet"}`)
+            .setDescription(
+                `Your balance: **${balance}** coins\n${options.description || "Choose your bet amount:"}`
+            )
+            .setColor(0x00ae86);
+
+        const components = this.createBetButtons(amounts, balance);
+        
+        await this.requestCustomAction(interaction, embed, components, callback, { ...payload, minBet }, options);
+    }
+
+    createWaitTimeButtons(times, labels) {
+        const buttons = new ActionRowBuilder();
+        for (let i = 0; i < Math.min(times.length, 5); i++) {
+            buttons.addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`wait_${times[i]}`)
+                    .setLabel(labels[i] || `${times[i]} seconds`)
+                    .setStyle(i === times.length - 1 ? ButtonStyle.Secondary : ButtonStyle.Primary)
+            );
+        }
+        return [buttons];
+    }
+
+    async requestWaitTime(interaction, callback, payload = {}, options = {}) {
+        const times = options.times || [30, 60, 120];
+        const labels = options.labels || ["30 seconds", "60 seconds", "2 minutes"];
+
+        const embed = new EmbedBuilder()
+            .setTitle(`⏰ ${options.title || "Wait Time Selection"}`)
+            .setDescription(
+                options.description || "How long should we wait for other players to join?"
+            )
+            .setColor(0x00ae86);
+
+        const components = this.createWaitTimeButtons(times, labels);
+        
+        await this.requestCustomAction(interaction, embed, components, callback, payload, options);
     }
 
     async handleGameUIInteraction(interaction) {
         const customId = interaction.customId;
 
-        // Handle preset bet amounts
-        if (customId.startsWith("gameUI_bet_")) {
+        // Handle custom actions
+        if (customId.startsWith("gameUI_custom_")) {
             const parts = customId.split("_");
             const requestId = parts[2];
-            const amount = parseInt(parts[3]);
+            const originalCustomId = parts.slice(3).join("_");
 
-            const request = this.betRequests.get(requestId);
+            const request = this.customRequests.get(requestId);
             if (!request) return false;
 
-            // Delete the bet selection message
+            // Delete the selection message
             try {
                 if (request.originalInteraction) {
                     await request.originalInteraction.deleteReply();
@@ -128,37 +162,20 @@ class GameUI {
                 // Message already deleted or expired
             }
 
-            this.betRequests.delete(requestId);
-            return await request.callback(interaction, amount, request.payload);
+            this.customRequests.delete(requestId);
+            
+            // Parse value from original custom ID for bet/wait actions
+            let value = originalCustomId;
+            if (originalCustomId.startsWith("bet_")) {
+                value = parseInt(originalCustomId.split("_")[1]);
+            } else if (originalCustomId.startsWith("wait_")) {
+                value = parseInt(originalCustomId.split("_")[1]);
+            }
+            
+            return await request.callback(interaction, value, request.payload);
         }
 
-        // Handle custom bet button
-        if (customId.startsWith("gameUI_custom_")) {
-            const requestId = customId.split("_")[2];
-            const request = this.betRequests.get(requestId);
-            if (!request) return false;
 
-            const balance = await currencyManager.getBalance(
-                interaction.user.id
-            );
-            const modalId = `gameUI_modal_${requestId}`;
-
-            const modal = new ModalBuilder()
-                .setCustomId(modalId)
-                .setTitle("Custom Bet Amount");
-
-            const betInput = new TextInputBuilder()
-                .setCustomId("bet_amount")
-                .setLabel("Enter bet amount (coins)")
-                .setStyle(TextInputStyle.Short)
-                .setPlaceholder(`${request.minBet} - ${balance}`)
-                .setRequired(true)
-                .setMaxLength(10);
-
-            modal.addComponents(new ActionRowBuilder().addComponents(betInput));
-            await interaction.showModal(modal);
-            return true;
-        }
 
         // Handle custom bet modal submission
         if (customId.startsWith("gameUI_modal_")) {

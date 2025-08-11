@@ -8,11 +8,12 @@
 - Critical bugs often in currency/date logic - check comparisons carefully
 - User values security - SQL injection, XSS, crypto-secure random are priorities
 - Test files exist - update CI workflows when adding new games
-- Database schema versioning is important - current v12 with channel_threads
+- Database schema versioning is important - current v13 (removed unused channel_threads table)
 - Roulette currency fix pattern: award winnings separately from net result logic
 - **Unified Game System**: Created comprehensive unified modules (baseGame.js, gameUI.js, gameRewards.js) to eliminate ~90% code duplication across games
 - **Custom Bet Modal System**: Implemented TextInput modal functionality for custom bet amounts with memory-based callback system
-- **Blackjack Flow Fixed**: Single player uses updateOriginal:true, multiplayer uses ephemeral bet selection with proper lobby/thread systems
+- **Blackjack Flow Fixed**: Single player uses updateOriginal:true, multiplayer uses ephemeral bet selection with lobby system (no threading for mobile compatibility)
+- **Ephemeral Auto-Updates**: Implemented comprehensive timeout management system for automatic hand updates with 13/14-minute warnings and cleanup
 - **Message Update Patterns**: Let gameUI handle message updates, don't duplicate in game logic - prevents conflicts and "Something went wrong" errors
 - **Modal ID Matching**: Modal interactions require exact ID matching between creation and handling - mismatches cause Discord errors
 - **Discord Limits**: 5-button limit per row, ephemeral vs original message updates need careful handling based on game mode
@@ -114,7 +115,7 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **Modes**: Single player, multiplayer (AI dealer), multiplayer (player dealer)
 - **Features**: Lobbies with countdown timers, betting system, currency integration
 - **UI**: Interactive embeds with buttons for Hit/Stand/Double Down
-- **Multiplayer**: Threads for game isolation, private hand info via ephemeral messages
+- **Multiplayer**: Ephemeral messages for private hand info (no threading for mobile compatibility)
 - **Statistics**: Win/loss/push tracking, bet amounts, payout analysis
 
 ### Battleship
@@ -243,9 +244,13 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 ### Phase 8: Unified Game System (COMPLETE)
 - **Code Deduplication**: Created baseGame.js, gameUI.js, gameRewards.js to eliminate ~90% duplicate code
 - **Custom Bet System**: TextInput modal functionality with memory-based callbacks for any bet amount
-- **Blackjack Flow Fixes**: Proper single vs multiplayer bet selection flows with correct message update patterns
+- **Wait Time System**: Added requestWaitTime to gameUI for universal multiplayer lobby timing
+- **Blackjack Migration**: Fully migrated to unified system patterns, removed custom implementations
+- **Message Update Standardization**: gameUI handles all message updates consistently
+- **Schema Cleanup**: Removed unused threading infrastructure (v13)
 - **Example Game Template**: Created minimal 80-line example game demonstrating all unified system features
 - **Modal Integration**: Fixed multiple technical issues with modal ID matching and interaction handling
+- **Ephemeral Auto-Updates**: Comprehensive timeout management system with automatic hand updates, 13/14-minute expiry warnings, and bulletproof cleanup
 
 ## Future Enhancements
 

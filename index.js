@@ -391,7 +391,7 @@ client.on("messageCreate", async (message) => {
     if (message.content.startsWith("!cowsay gif")) {
         let parts = message.content.split(" ");
         fetch(
-            "https://richard.works/projects/Roulette/roulette.php?winner=" +
+            "https://richard.works/projects/Roulette/webp.php?winner=" +
                 parts[2]
         ).then((response) => {
             response.text().then((text) => {

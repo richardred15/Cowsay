@@ -436,7 +436,7 @@ class Roulette extends BaseGame {
         }
         setTimeout(() => {
             this.finishGame(interaction, gameManager, gameData, gameKey);
-        }, 12000);
+        }, 20000);
     }
 
     async finishGame(interaction, gameManager, gameData, gameKey) {
@@ -843,7 +843,7 @@ class Roulette extends BaseGame {
         const CryptoRandom = require("../cryptoRandom");
         gameData.winningNumber = CryptoRandom.randomInt(0, 36); // 0-36 inclusive
         fetch(
-            "https://richard.works/projects/Roulette/roulette.php?winner=" +
+            "https://richard.works/projects/Roulette/webp.php?winner=" +
                 gameData.winningNumber +
                 "&gameKey=" +
                 gameKey

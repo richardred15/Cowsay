@@ -14,6 +14,17 @@ class GameManager {
         this.games = { tictactoe, blackjack, battleship, balatro, pong, roulette };
     }
 
+    deleteGame(gameKey) {
+        const gameData = this.activeGames.get(gameKey);
+        if (gameData && gameData.type === 'blackjack' && gameData.ephemeralInteractions) {
+            // Clean up all ephemeral timeouts for blackjack games
+            Object.keys(gameData.ephemeralInteractions).forEach(userId => {
+                this.games.blackjack.cleanupEphemeralTimeouts(userId, gameData);
+            });
+        }
+        return this.activeGames.delete(gameKey);
+    }
+
     getAvailableGames() {
         return Object.keys(this.games);
     }
@@ -197,6 +208,11 @@ class GameManager {
 
     async handleButtonInteraction(interaction) {
         const userId = interaction.user.id;
+        
+        // Handle gameUI interactions first
+        if (interaction.customId.startsWith('gameUI_')) {
+            return await gameUI.handleGameUIInteraction(interaction);
+        }
         
         // Only handle game-related buttons
         const gameButtonPrefixes = ['bs_', 'bal_', 'pong_', 'bj_', 'ttt_', 'roulette_'];
