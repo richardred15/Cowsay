@@ -146,7 +146,10 @@ class CurrencyManager {
 
             const player = rows[0];
 
-            if (player.last_daily === today) {
+            if (
+                player.last_daily != null &&
+                player.last_daily.toISOString().split("T")[0] === today
+            ) {
                 return {
                     success: false,
                     message: "You already claimed your daily bonus today!",

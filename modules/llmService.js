@@ -18,7 +18,7 @@ class LLMService {
         const defaultOptions = {
             max_tokens: MAX_TOKENS,
             reasoning_effort: "none",
-            streaming: false,
+            /* streaming: false, */
         };
         if (this.llmProvider.supportsTools()) {
             //const animalSayTool = await toolManager.getAnimalSayTool();

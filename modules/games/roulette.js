@@ -5,20 +5,20 @@ const {
     ButtonStyle,
     MessageFlags,
 } = require("discord.js");
-const BaseGame = require('./baseGame');
-const gameUI = require('./gameUI');
-const gameRewards = require('./gameRewards');
-const gameStats = require('../gameStats');
+const BaseGame = require("./baseGame");
+const gameUI = require("./gameUI");
+const gameRewards = require("./gameRewards");
+const gameStats = require("../gameStats");
 const currencyManager = require("../currencyManager");
 
 class Roulette extends BaseGame {
     constructor() {
-        super('roulette');
-        
+        super("roulette");
+
         // Register interaction handlers
-        this.registerHandler('bet', this.handleBet.bind(this));
-        this.registerHandler('number', this.handleNumberBet.bind(this));
-        
+        this.registerHandler("bet", this.handleBet.bind(this));
+        this.registerHandler("number", this.handleNumberBet.bind(this));
+
         // European roulette wheel order (clockwise from 0)
         this.wheelOrder = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
@@ -102,13 +102,17 @@ class Roulette extends BaseGame {
             components: buttons,
         });
 
-        const gameData = this.createBaseGameData(message.author, message.guild?.id, {
-            phase: "betting",
-            channelId: message.channel.id,
-            players: new Map(), // userId -> { bets: [], totalBet: number }
-            bettingDuration: 60000, // 60 seconds
-            messageId: reply.id,
-        });
+        const gameData = this.createBaseGameData(
+            message.author,
+            message.guild?.id,
+            {
+                phase: "betting",
+                channelId: message.channel.id,
+                players: new Map(), // userId -> { bets: [], totalBet: number }
+                bettingDuration: 60000, // 60 seconds
+                messageId: reply.id,
+            }
+        );
 
         const gameKey = `roulette_${message.channel.id}_${Date.now()}`;
 
@@ -156,40 +160,6 @@ class Roulette extends BaseGame {
         return [row1, row2];
     }
 
-    // Legacy interaction handler - now uses BaseGame unified system
-    async handleGameInteraction(interaction, gameData, gameKey, gameManager) {
-        const userId = interaction.user.id;
-
-        // Check if betting phase is still active
-        const timeElapsed = Date.now() - gameData.startTime;
-        if (timeElapsed >= gameData.bettingDuration) {
-            // Start spinning if not already started
-            if (gameData.phase === "betting") {
-                gameData.phase = "spinning";
-                gameManager.activeGames.set(gameKey, gameData);
-                await this.spinWheel(interaction, gameData, gameManager, gameKey);
-            }
-            return true;
-        }
-
-        // Handle bet actions (red, black, even, odd, low, high, number)
-        if (interaction.customId.startsWith("roulette_bet_")) {
-            const betType = interaction.customId.split("_")[2];
-            if (betType === "number") {
-                return await this.showNumberSelection(interaction);
-            }
-            return await this.handleBet(interaction, gameData, gameKey, gameManager, betType);
-        }
-        
-        // Handle number selection
-        if (interaction.customId.startsWith("roulette_number_")) {
-            const number = parseInt(interaction.customId.split("_")[2]);
-            return await this.handleNumberBet(interaction, gameData, gameKey, gameManager, number);
-        }
-
-        return false;
-    }
-
     async handleBetPlaced(betInteraction, betAmount, payload) {
         const { betType, number, gameData, gameKey, gameManager } = payload;
         return await this.placeBet(
@@ -203,7 +173,13 @@ class Roulette extends BaseGame {
         );
     }
 
-    async handleBet(interaction, gameData, gameKey, gameManager, betType = null) {
+    async handleBet(
+        interaction,
+        gameData,
+        gameKey,
+        gameManager,
+        betType = null
+    ) {
         // Extract bet type if not provided
         if (!betType) {
             betType = interaction.customId.split("_")[2];
@@ -216,8 +192,13 @@ class Roulette extends BaseGame {
 
         // Validate bet type
         if (!this.betTypes[betType]) {
-            console.log(`Invalid bet type: '${betType}' from customId: '${interaction.customId}'`);
-            await interaction.reply({ content: "❌ Invalid bet type!", flags: MessageFlags.Ephemeral });
+            console.log(
+                `Invalid bet type: '${betType}' from customId: '${interaction.customId}'`
+            );
+            await interaction.reply({
+                content: "❌ Invalid bet type!",
+                flags: MessageFlags.Ephemeral,
+            });
             return true;
         }
 
@@ -228,7 +209,7 @@ class Roulette extends BaseGame {
             {
                 title: `Betting on ${this.betTypes[betType].name}`,
                 description: `Payout: **${this.betTypes[betType].payout}:1**\nChoose your bet amount:`,
-                minBet: 1
+                minBet: 1,
             }
         );
     }
@@ -271,27 +252,33 @@ class Roulette extends BaseGame {
             components: buttons,
             flags: MessageFlags.Ephemeral,
         });
-        
+
         // Store this interaction for cleanup
         if (!this.numberSelectionInteractions) {
             this.numberSelectionInteractions = new Map();
         }
         this.numberSelectionInteractions.set(interaction.user.id, interaction);
-        
+
         return true;
     }
 
-
-
-    async handleNumberBet(interaction, gameData, gameKey, gameManager, number = null) {
+    async handleNumberBet(
+        interaction,
+        gameData,
+        gameKey,
+        gameManager,
+        number = null
+    ) {
         // Extract number if not provided
         if (number === null) {
             number = parseInt(interaction.customId.split("_")[2]);
         }
-        
+
         // Delete the number selection message
         if (this.numberSelectionInteractions) {
-            const numberInteraction = this.numberSelectionInteractions.get(interaction.user.id);
+            const numberInteraction = this.numberSelectionInteractions.get(
+                interaction.user.id
+            );
             if (numberInteraction) {
                 try {
                     await numberInteraction.deleteReply();
@@ -301,15 +288,22 @@ class Roulette extends BaseGame {
                 this.numberSelectionInteractions.delete(interaction.user.id);
             }
         }
-        
+
         return await gameUI.requestBetAmount(
             interaction,
             this.handleBetPlaced.bind(this),
-            { betType: 'straight', number, gameData, gameKey, gameManager, interaction },
+            {
+                betType: "straight",
+                number,
+                gameData,
+                gameKey,
+                gameManager,
+                interaction,
+            },
             {
                 title: `Betting on Number ${number}`,
-                description: 'Payout: **35:1**\nChoose your bet amount:',
-                minBet: 1
+                description: "Payout: **35:1**\nChoose your bet amount:",
+                minBet: 1,
             }
         );
     }
@@ -356,7 +350,7 @@ class Roulette extends BaseGame {
         if (!betAmount || isNaN(betAmount) || betAmount <= 0) {
             await interaction.reply({
                 content: "❌ Invalid bet amount!",
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -377,7 +371,7 @@ class Roulette extends BaseGame {
                     ? `Number ${number}`
                     : this.betTypes[betType].name
             }**\nYou can place more bets or wait for the spin!`,
-            flags: MessageFlags.Ephemeral
+            flags: MessageFlags.Ephemeral,
         });
 
         // Auto-delete ephemeral message after 12 seconds to reduce clutter
@@ -412,28 +406,52 @@ class Roulette extends BaseGame {
             return;
         }
 
-        // Generate winning number (0-36 for European roulette)
-        const CryptoRandom = require("../cryptoRandom");
-        const winningNumber = CryptoRandom.randomInt(0, 36); // 0-36 inclusive
+        let description = this.getRandomDealerMessage("spinning");
+        const bettingSummary = this.generateBettingSummary(gameData.players);
+        if (bettingSummary) {
+            description += `\n\n**💰 Placed Bets:**\n${bettingSummary}`;
+        }
 
-        // Start animation
-        await this.spinAnimation(interaction, winningNumber, gameData);
+        const spinEmbed = new EmbedBuilder()
+            .setTitle("🎰 Roulette Wheel Spinning...")
+            .setDescription(description)
+            .setImage(gameData.gif_url)
+            .setColor(0x00ae86);
 
+        //.setColor(isLastFrame ? 0xffd700 : 0x00ae86);
+
+        try {
+            interaction.editReply({
+                embeds: [spinEmbed],
+                components: [],
+            });
+        } catch (error) {
+            try {
+                interaction.followUp({ embeds: [spinEmbed] });
+            } catch (followUpError) {
+                Logger.error("Error following up with spin embed:", {
+                    error: followUpError.message,
+                });
+            }
+        }
+        setTimeout(() => {
+            this.finishGame(interaction, gameManager, gameData, gameKey);
+        }, 12000);
+    }
+
+    async finishGame(interaction, gameManager, gameData, gameKey) {
         // Calculate payouts
-        const results = await this.calculatePayouts(gameData, winningNumber);
-
+        const results = await this.calculatePayouts(gameData);
         // Show final results
-        await this.showResults(interaction, gameData, winningNumber, results);
-
+        await this.showResults(interaction, gameData, gameKey, results);
         // Record game outcome
-        this.recordGameOutcome(gameData, winningNumber, results);
-
+        this.recordGameOutcome(gameData, results);
         // Clean up
         gameManager.activeGames.delete(gameKey);
     }
 
-    async spinAnimation(interaction, winningNumber, gameData) {
-        const winningIndex = this.wheelOrder.indexOf(winningNumber);
+    async spinAnimation(interaction, gameData) {
+        const winningIndex = this.wheelOrder.indexOf(gameData.winningNumber);
         const totalFrames = 25; // Fixed frame count for ~15-20 seconds
         const CryptoRandom = require("../cryptoRandom");
 
@@ -457,7 +475,7 @@ class Roulette extends BaseGame {
 
             const display = this.generateWheelFrame(
                 ballPosition,
-                frame === totalFrames - 1 ? winningNumber : null
+                frame === totalFrames - 1 ? gameData.winningNumber : null
             );
 
             const isLastFrame = frame === totalFrames - 1;
@@ -477,6 +495,7 @@ class Roulette extends BaseGame {
                 description += `\n\n**💰 Placed Bets:**\n${bettingSummary}`;
             }
 
+            description += "\n\n";
             const spinEmbed = new EmbedBuilder()
                 .setTitle(
                     isLastFrame
@@ -556,7 +575,7 @@ class Roulette extends BaseGame {
         return "⚫";
     }
 
-    async calculatePayouts(gameData, winningNumber) {
+    async calculatePayouts(gameData) {
         const results = {
             winners: [],
             losers: [],
@@ -564,7 +583,6 @@ class Roulette extends BaseGame {
         };
 
         for (const [userId, player] of gameData.players) {
-
             let playerWinnings = 0;
             let winningBets = [];
             let losingBets = [];
@@ -574,25 +592,37 @@ class Roulette extends BaseGame {
 
                 switch (bet.type) {
                     case "red":
-                        isWin = this.redNumbers.includes(winningNumber);
+                        isWin = this.redNumbers.includes(
+                            gameData.winningNumber
+                        );
                         break;
                     case "black":
-                        isWin = this.blackNumbers.includes(winningNumber);
+                        isWin = this.blackNumbers.includes(
+                            gameData.winningNumber
+                        );
                         break;
                     case "even":
-                        isWin = winningNumber > 0 && winningNumber % 2 === 0;
+                        isWin =
+                            gameData.winningNumber > 0 &&
+                            gameData.winningNumber % 2 === 0;
                         break;
                     case "odd":
-                        isWin = winningNumber > 0 && winningNumber % 2 === 1;
+                        isWin =
+                            gameData.winningNumber > 0 &&
+                            gameData.winningNumber % 2 === 1;
                         break;
                     case "low":
-                        isWin = winningNumber >= 1 && winningNumber <= 18;
+                        isWin =
+                            gameData.winningNumber >= 1 &&
+                            gameData.winningNumber <= 18;
                         break;
                     case "high":
-                        isWin = winningNumber >= 19 && winningNumber <= 36;
+                        isWin =
+                            gameData.winningNumber >= 19 &&
+                            gameData.winningNumber <= 36;
                         break;
                     case "straight":
-                        isWin = winningNumber === bet.number;
+                        isWin = gameData.winningNumber === bet.number;
                         break;
                 }
 
@@ -646,34 +676,27 @@ class Roulette extends BaseGame {
         return results;
     }
 
-    async showResults(interaction, gameData, winningNumber, results) {
-        const color = this.getNumberColor(winningNumber);
+    async showResults(interaction, gameData, gameKey, results) {
+        const color = this.getNumberColor(gameData.winningNumber);
         const colorName =
-            winningNumber === 0
+            gameData.winningNumber === 0
                 ? "Green"
-                : this.redNumbers.includes(winningNumber)
+                : this.redNumbers.includes(gameData.winningNumber)
                 ? "Red"
                 : "Black";
 
-        // Use the existing embed from animation and add results
-        const embed =
-            this.finalEmbed ||
-            new EmbedBuilder()
-                .setTitle("🎊 Roulette Results 🎊")
-                .setDescription(
-                    this.generateWheelFrame(
-                        this.wheelOrder.indexOf(winningNumber),
-                        winningNumber
-                    )
-                )
-                .setColor(0xffd700);
-
-        // Add dealer message and winning number info
         const dealerMessage = this.getRandomDealerMessage("results");
-        embed.setDescription(
-            embed.data.description +
-                `\n\n${dealerMessage}\n**Winning Number: ${color}${winningNumber} (${colorName})**`
-        );
+
+        // Use the existing embed from animation and add results
+        const embed = new EmbedBuilder()
+            .setTitle("🎊 Roulette Results 🎊")
+            .setDescription(
+                `${dealerMessage}\n**Winning Number: ${color}${gameData.winningNumber} (${colorName})**`
+            )
+            .setImage(
+                `https://richard.works/projects/Roulette/results/${gameKey}.png`
+            )
+            .setColor(0xffd700);
 
         // Show detailed results for each player
         const playerResults = [];
@@ -696,43 +719,61 @@ class Roulette extends BaseGame {
                     // Check if this specific bet won
                     switch (bet.type) {
                         case "red":
-                            if (this.redNumbers.includes(winningNumber)) {
+                            if (
+                                this.redNumbers.includes(gameData.winningNumber)
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "black":
-                            if (this.blackNumbers.includes(winningNumber)) {
+                            if (
+                                this.blackNumbers.includes(
+                                    gameData.winningNumber
+                                )
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "even":
-                            if (winningNumber > 0 && winningNumber % 2 === 0) {
+                            if (
+                                gameData.winningNumber > 0 &&
+                                gameData.winningNumber % 2 === 0
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "odd":
-                            if (winningNumber > 0 && winningNumber % 2 === 1) {
+                            if (
+                                gameData.winningNumber > 0 &&
+                                gameData.winningNumber % 2 === 1
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "low":
-                            if (winningNumber >= 1 && winningNumber <= 18) {
+                            if (
+                                gameData.winningNumber >= 1 &&
+                                gameData.winningNumber <= 18
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "high":
-                            if (winningNumber >= 19 && winningNumber <= 36) {
+                            if (
+                                gameData.winningNumber >= 19 &&
+                                gameData.winningNumber <= 36
+                            ) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
                             break;
                         case "straight":
-                            if (winningNumber === bet.number) {
+                            if (gameData.winningNumber === bet.number) {
                                 betResult = "✅";
                                 betPayout = bet.amount * (bet.payout + 1);
                             }
@@ -798,30 +839,46 @@ class Roulette extends BaseGame {
     startCountdownTimer(channel, gameKey, gameData) {
         const gameManager = require("../gameManager");
 
+        // Generate winning number (0-36 for European roulette)
+        const CryptoRandom = require("../cryptoRandom");
+        gameData.winningNumber = CryptoRandom.randomInt(0, 36); // 0-36 inclusive
+        fetch(
+            "https://richard.works/projects/Roulette/roulette.php?winner=" +
+                gameData.winningNumber +
+                "&gameKey=" +
+                gameKey
+        ).then((response) => {
+            response.text().then((text) => {
+                gameData.gif_url =
+                    "https://richard.works/projects/Roulette/" + text;
+                // Start animation
+                //this.spinAnimation(interaction, winningNumber, gameData);
+            });
+        });
         const countdownInterval = setInterval(async () => {
-            const currentGame = gameManager.activeGames.get(gameKey);
-            if (!currentGame || currentGame.phase !== "betting") {
+            //const currentGame = gameManager.activeGames.get(gameKey);
+            if (!gameData || gameData.phase !== "betting") {
                 clearInterval(countdownInterval);
                 return;
             }
 
-            const timeElapsed = Date.now() - currentGame.startTime;
+            const timeElapsed = Date.now() - gameData.startTime;
             const timeLeft = Math.max(
                 0,
-                Math.ceil((currentGame.bettingDuration - timeElapsed) / 1000)
+                Math.ceil((gameData.bettingDuration - timeElapsed) / 1000)
             );
 
             if (timeLeft <= 0) {
                 clearInterval(countdownInterval);
-                currentGame.phase = "spinning";
-                gameManager.activeGames.set(gameKey, currentGame);
+                gameData.phase = "spinning";
+                gameManager.activeGames.set(gameKey, gameData);
 
                 // Create fake interaction for spinning
                 const fakeInteraction = {
                     editReply: async (options) => {
                         try {
                             const message = await channel.messages.fetch(
-                                currentGame.messageId
+                                gameData.messageId
                             );
                             await message.edit(options);
                         } catch (error) {
@@ -835,7 +892,7 @@ class Roulette extends BaseGame {
 
                 await this.spinWheel(
                     fakeInteraction,
-                    currentGame,
+                    gameData,
                     gameManager,
                     gameKey
                 );
@@ -853,7 +910,7 @@ class Roulette extends BaseGame {
 
             // Generate live betting display
             const bettingSummary = this.generateBettingSummary(
-                currentGame.players
+                gameData.players
             );
 
             // Add dealer message for countdown updates
@@ -911,7 +968,7 @@ class Roulette extends BaseGame {
 
             try {
                 const message = await channel.messages.fetch(
-                    currentGame.messageId
+                    gameData.messageId
                 );
                 await message.edit({ embeds: [embed], components: buttons });
             } catch (error) {
@@ -1008,7 +1065,7 @@ class Roulette extends BaseGame {
         return lines.length > 0 ? lines.join("\n") : null;
     }
 
-    recordGameOutcome(gameData, winningNumber, results) {
+    recordGameOutcome(gameData, results) {
         // Record outcome for each player
         for (const [userId, player] of gameData.players) {
             const isWinner = results.winners.some((w) => w.userId === userId);
@@ -1016,9 +1073,11 @@ class Roulette extends BaseGame {
                 ? results.winners.find((w) => w.userId === userId)
                 : results.losers.find((l) => l.userId === userId);
 
-            const players = [{ id: userId, name: this.sanitizePlayerName(player.name) }];
+            const players = [
+                { id: userId, name: this.sanitizePlayerName(player.name) },
+            ];
             const winnerId = isWinner ? userId : "ai_player";
-            
+
             gameStats.recordGameOutcome(
                 this.gameType,
                 gameData,
@@ -1027,13 +1086,15 @@ class Roulette extends BaseGame {
                 {
                     aiName: "House",
                     finalScore: {
-                        winning_number: winningNumber,
+                        winning_number: gameData.winningNumber,
                         total_bet: player.totalBet,
                         total_payout: isWinner ? playerResult.winnings : 0,
-                        profit: isWinner ? playerResult.profit : -player.totalBet,
+                        profit: isWinner
+                            ? playerResult.profit
+                            : -player.totalBet,
                         bets: player.bets,
                     },
-                    gameMode: "multiplayer"
+                    gameMode: "multiplayer",
                 }
             );
         }

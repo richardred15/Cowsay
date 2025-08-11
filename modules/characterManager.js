@@ -73,8 +73,17 @@ class CharacterManager {
             if (userId && !(await this.canUseCharacter(userId, animal))) {
                 return `🔒 **${animal}** is a premium character! Use \`!cowsay shop\` to purchase it.`;
             }
-
-            return cowsay.say({ text: message, f: animal });
+            let ascii = cowsay.say({ text: message, f: animal });
+            console.log(ascii);
+            const escaped = ascii.replace(/\\/g, "\\\\").replace(/`/g, "\\`");
+            if (escaped.length > 1700) {
+                const maxContent = 1700 - 8;
+                const truncated =
+                    escaped.slice(0, maxContent - 20) +
+                    "\n[... ASCII too long ...]";
+                return `\`\`\`\n${truncated}\n\`\`\``;
+            }
+            return `\`\`\`\n${escaped}\n\`\`\``;
         } catch (error) {
             Logger.error("Character generation error:", error);
             return cowsay.say({ text: message }); // fallback to default

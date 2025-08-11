@@ -2016,7 +2016,7 @@ client.on("messageCreate", async (message) => {
                 randomChar,
                 data.joke
             );
-            message.reply(`\`\`\`\n${result}\n\`\`\``);
+            message.reply(result);
         } catch (error) {
             message.reply("Sorry, couldn't fetch a joke right now! 😅");
         }
@@ -2160,25 +2160,7 @@ client.on("messageCreate", async (message) => {
                     message.author.id
                 );
 
-                // Check if it's a premium character message
-                if (result.includes("🔒")) {
-                    message.reply(result);
-                    return;
-                }
-
-                const escaped = result
-                    .replace(/\\/g, "\\\\")
-                    .replace(/`/g, "\\`");
-                const formatted = `\`\`\`\n${escaped}\n\`\`\``;
-                if (formatted.length > 2000) {
-                    const maxContent = 2000 - 8;
-                    const truncated =
-                        escaped.slice(0, maxContent - 20) +
-                        "\n[... ASCII too long ...]";
-                    message.reply(`\`\`\`\n${truncated}\n\`\`\``);
-                } else {
-                    message.reply(formatted);
-                }
+                message.reply(result);
             } catch (error) {
                 Logger.error(
                     `Character generation error for ${cleanName}`,

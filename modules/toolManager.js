@@ -97,7 +97,7 @@ class ToolManager {
                             args.animal,
                             args.message
                         );
-                        response += `\n\`\`\`\n${asciiArt}\n\`\`\`\n`;
+                        response += asciiArt;
                     } catch (error) {
                         console.error("Tool call error:", error);
                         response += "\n[ASCII art generation failed]";
