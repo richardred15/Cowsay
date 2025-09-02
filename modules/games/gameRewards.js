@@ -11,7 +11,8 @@ class GameRewards {
             balatro: { base: 25, maxAnte: 150 },
             hangman: { win: 60, participation: 5, perfect: 100 },
             baccarat: { participation: 5 },
-            unoexpress: { win: 75, participation: 10 }
+            unoexpress: { win: 75, participation: 10 },
+            wordle: { win: 0, participation: 5 } // Uses bet multiplier instead
         };
     }
 
@@ -123,6 +124,15 @@ class GameRewards {
             await currencyManager.awardCoins(userId, winnings, reason);
         }
         return winnings;
+    }
+
+    async awardWordlePayout(userId, betAmount, won) {
+        if (won && betAmount > 0) {
+            const payout = betAmount * 2; // 2x bet for wins
+            await currencyManager.addBalance(userId, payout);
+            return payout;
+        }
+        return 0;
     }
 }
 

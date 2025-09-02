@@ -1,0 +1,204 @@
+name: Roulette Game Tests
+
+on:
+  push:
+    paths:
+      - 'modules/games/roulette.js'
+      - 'tests/**/*roulette*'
+      - 'tests/unit/roulette.test.js'
+      - 'tests/integration/roulette.test.js'
+      - 'tests/performance/roulette-performance.js'
+  pull_request:
+    paths:
+      - 'modules/games/roulette.js'
+      - 'tests/**/*roulette*'
+
+jobs:
+  roulette-unit-tests:
+    runs-on: ubuntu-latest
+    name: Roulette Unit Tests
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd tests && npm ci
+    
+    - name: Run Roulette Unit Tests
+      run: cd tests && npm run test:roulette:unit
+
+  roulette-integration-tests:
+    runs-on: ubuntu-latest
+    name: Roulette Integration Tests
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: cowsay_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd tests && npm ci
+    
+    - name: Setup test environment
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: cd tests && npm run test:db:setup
+    
+    - name: Run Roulette Integration Tests
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: cd tests && npm run test:roulette:integration
+
+  roulette-performance-tests:
+    runs-on: ubuntu-latest
+    name: Roulette Performance Tests
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: cowsay_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd tests && npm ci
+    
+    - name: Setup test environment
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: cd tests && npm run test:db:setup
+    
+    - name: Run Roulette Performance Tests
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: cd tests && npm run test:roulette:performance
+    
+    - name: Upload Performance Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: roulette-performance-reports
+        path: tests/performance/reports/
+        retention-days: 30
+
+  roulette-coverage:
+    runs-on: ubuntu-latest
+    name: Roulette Code Coverage
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: cowsay_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd tests && npm ci
+    
+    - name: Setup test environment
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: cd tests && npm run test:db:setup
+    
+    - name: Run Tests with Coverage
+      env:
+        DB_HOST: 127.0.0.1
+        DB_PORT: 3306
+        DB_USER: root
+        DB_PASSWORD: test_password
+        DB_NAME: cowsay_test
+      run: |
+        cd tests
+        npx jest unit/roulette.test.js integration/roulette.test.js --coverage --coverageReporters=lcov --coverageReporters=text
+    
+    - name: Upload Coverage Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: roulette-coverage-report
+        path: tests/coverage/
+        retention-days: 30

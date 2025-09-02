@@ -54,6 +54,8 @@ class CommandHandler {
                     "`!hangman` - Word guessing game with betting",
                     "`!baccarat` - Classic casino card game",
                     "`!unoexpress` - Fast-paced multiplayer card game",
+                    "`!wordle [bet]` - 5-letter word guessing game",
+                    "`!guess <word>` - Make a guess in active Wordle game",
                 ],
             },
             {

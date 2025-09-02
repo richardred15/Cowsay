@@ -47,6 +47,7 @@ const battleship = require("./modules/games/battleship");
 const pong = require("./modules/games/pong");
 const unicodeNormalizer = require("./modules/unicodeNormalizer");
 const gameUI = require("./modules/games/gameUI");
+const { isArrayBuffer } = require("util/types");
 
 const client = new Client({
     intents: [
@@ -103,21 +104,27 @@ client.once("ready", async () => {
     }
 
     //Banner - do not remove
-    const padding = new Array(Math.floor((process.stdout.columns - 100) / 2))
-        .fill(" ")
-        .join("");
-    fs.readFile("./banner.ini", "utf8", (err, data) => {
-        if (err) {
-            Logger.error("Failed to read banner file", err.message);
-        } else {
-            console.log("\n\n\n");
-            const lines = data.split("\n");
-            lines.forEach((line) => {
-                console.log(`${padding}${line}`);
-            });
-            console.log("\n\n\n");
-        }
-    });
+    if (process.stdout.columns !== undefined && !isNaN(process.stdout.columns)) {
+        let padding_size = 0;
+        if (process.stdout.columns > 100) padding_size = Math.floor((process.stdout.columns - 100) / 2);
+        const padding = new Array(padding_size)
+            .fill(" ")
+            .join("");
+        fs.readFile("./banner.ini", "utf8", (err, data) => {
+            if (err) {
+                Logger.error("Failed to read banner file", err.message);
+            } else {
+                console.log("\n\n\n");
+                const lines = data.split("\n");
+                lines.forEach((line) => {
+                    console.log(`${padding}${line}`);
+                });
+                console.log("\n\n\n");
+            }
+        });
+    } else {
+        Logger.log("Welcome to Cowsay!");
+    }
 
     // Clean up old data every hour
     setInterval(() => {
@@ -201,10 +208,9 @@ client.on("interactionCreate", async (interaction) => {
                         .setTitle("🎉 Purchase Successful!")
                         .setColor(0x00ff00)
                         .setDescription(
-                            `${result.message}\n\n${
-                                result.item.category === "character"
-                                    ? `You can now use \`!${itemId}say <text>\` to use your new character!`
-                                    : "Your boost is now active!"
+                            `${result.message}\n\n${result.item.category === "character"
+                                ? `You can now use \`!${itemId}say <text>\` to use your new character!`
+                                : "Your boost is now active!"
                             }`
                         );
 
@@ -393,7 +399,7 @@ client.on("messageCreate", async (message) => {
         let parts = message.content.split(" ");
         fetch(
             "https://richard.works/projects/Roulette/webp.php?winner=" +
-                parts[2]
+            parts[2]
         ).then((response) => {
             response.text().then((text) => {
                 message.reply(
@@ -549,10 +555,10 @@ client.on("messageCreate", async (message) => {
                 index === 0
                     ? "🥇"
                     : index === 1
-                    ? "🥈"
-                    : index === 2
-                    ? "🥉"
-                    : `${index + 1}.`;
+                        ? "🥈"
+                        : index === 2
+                            ? "🥉"
+                            : `${index + 1}.`;
             return `${medal} <@${player.userId}>: **${player.balance}** coins`;
         });
 
@@ -586,10 +592,10 @@ client.on("messageCreate", async (message) => {
             const emoji = tx.reason.includes("perfect")
                 ? "🏆"
                 : tx.reason.includes("win")
-                ? "🎆"
-                : tx.reason.includes("participation")
-                ? "🎖️"
-                : "🪙";
+                    ? "🎆"
+                    : tx.reason.includes("participation")
+                        ? "🎖️"
+                        : "🪙";
             return `${emoji} ${sign}${tx.amount} 🪙 - ${tx.reason}\n*${tx.balance_before} → ${tx.balance_after} (${date} ${time})*`;
         });
 
@@ -662,18 +668,16 @@ client.on("messageCreate", async (message) => {
                     const giftedBy = item.gifted_by
                         ? ` (from <@${item.gifted_by}>)`
                         : "";
-                    return `${methodEmoji[item.acquired_method]} **${
-                        item.name
-                    }** - ${item.price} coins\n*Acquired ${date}${giftedBy}*`;
+                    return `${methodEmoji[item.acquired_method]} **${item.name
+                        }** - ${item.price} coins\n*Acquired ${date}${giftedBy}*`;
                 })
                 .join("\n\n");
 
             const categoryEmoji =
                 cat === "character" ? "🎭" : cat === "boost" ? "⚡" : "🛍️";
             embed.addFields({
-                name: `${categoryEmoji} ${
-                    cat.charAt(0).toUpperCase() + cat.slice(1)
-                }s (${categoryItems.length})`,
+                name: `${categoryEmoji} ${cat.charAt(0).toUpperCase() + cat.slice(1)
+                    }s (${categoryItems.length})`,
                 value: itemList,
                 inline: false,
             });
@@ -1020,12 +1024,11 @@ client.on("messageCreate", async (message) => {
                     category === "character"
                         ? "🎭"
                         : category === "boost"
-                        ? "⚡"
-                        : "🛍️";
+                            ? "⚡"
+                            : "🛍️";
                 embed.addFields({
-                    name: `${categoryEmoji} ${
-                        category.charAt(0).toUpperCase() + category.slice(1)
-                    }s`,
+                    name: `${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)
+                        }s`,
                     value: itemList,
                     inline: false,
                 });
@@ -1122,7 +1125,7 @@ client.on("messageCreate", async (message) => {
     // Handle both !cowsay play blackjack and !blackjack commands
     const isBlackjackCommand =
         message.content.startsWith("!cowsay play blackjack ") ||
-        message.content.startsWith("!blackjack ");
+        message.content.startsWith("!blackjack ") || message.content === "!b ";
     if (isBlackjackCommand) {
         let args;
         if (message.content.startsWith("!cowsay play blackjack ")) {
@@ -1163,7 +1166,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Handle !blackjack without arguments (interactive setup)
-    if (message.content === "!blackjack") {
+    if (message.content === "!blackjack" || message.content === "!b") {
         if (await gameManager.startGame(message, "blackjack")) {
             return;
         } else {
@@ -1173,7 +1176,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Handle !roulette shortcut command
-    if (message.content === "!roulette") {
+    if (message.content === "!roulette" || message.content === "!r") {
         if (await gameManager.startGame(message, "roulette")) {
             return;
         } else {
@@ -1183,7 +1186,7 @@ client.on("messageCreate", async (message) => {
     }
 
     // Handle !hangman shortcut command
-    if (message.content === "!hangman") {
+    if (message.content === "!hangman" || message.content === "!h") {
         if (await gameManager.startGame(message, "hangman")) {
             return;
         } else {
@@ -1210,6 +1213,60 @@ client.on("messageCreate", async (message) => {
             message.reply("Failed to start UNO Express game!");
             return;
         }
+    }
+
+    // Wordle command
+    if (message.content.startsWith("!wordle")) {
+        let started = await gameManager.startGame(message, "wordle");
+        if (!started) {
+            message.reply("Failed to start Wordle game!");
+            return;
+        }
+    }
+
+    // Guess command for Wordle
+    if (message.content.startsWith("!guess ")) {
+        const word = message.content.slice(7).trim().toUpperCase();
+        if (!word) {
+            return message.reply("❌ Please provide a word to guess!");
+        }
+
+        const gameKey = `wordle_${message.author.id}`;
+        const gameData = gameManager.activeGames.get(gameKey);
+
+        if (!gameData || gameData.type !== "wordle") {
+            return message.reply(
+                "❌ You don't have an active Wordle game! Start one with `!wordle`"
+            );
+        }
+        await gameManager.games[gameData.type].handleGuess(
+            message,
+            gameData,
+            word,
+            gameKey
+        );
+
+        if (gameData.gameOver) {
+            // Handle rewards
+            if (gameData.won && gameData.bet > 0) {
+                const gameRewards = require("./modules/games/gameRewards");
+                await gameRewards.awardWordlePayout(
+                    message.author.id,
+                    gameData.bet,
+                    true
+                );
+            } else if (!gameData.won) {
+                await require("./modules/games/gameRewards").awardGameReward(
+                    message.author.id,
+                    "wordle",
+                    "participation"
+                );
+            }
+
+            gameManager.deleteGame(gameKey);
+        }
+
+        return;
     }
 
     if (message.content.startsWith("!cowsay play ")) {
@@ -1587,9 +1644,8 @@ client.on("messageCreate", async (message) => {
                 balatro: "🎰",
             };
             embed.addFields({
-                name: `${gameEmoji[gameType] || "🎮"} ${
-                    gameType.charAt(0).toUpperCase() + gameType.slice(1)
-                }`,
+                name: `${gameEmoji[gameType] || "🎮"} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)
+                    }`,
                 value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
                 inline: true,
             });
@@ -1634,9 +1690,8 @@ client.on("messageCreate", async (message) => {
                 balatro: "🎰",
             };
             embed.addFields({
-                name: `${gameEmoji[gameType] || "🎮"} ${
-                    gameType.charAt(0).toUpperCase() + gameType.slice(1)
-                }`,
+                name: `${gameEmoji[gameType] || "🎮"} ${gameType.charAt(0).toUpperCase() + gameType.slice(1)
+                    }`,
                 value: `**${data.games_played}** games • **${data.wins}W-${data.losses}L-${data.ties}T** • **${data.win_rate}%** win rate`,
                 inline: true,
             });
@@ -1682,17 +1737,14 @@ client.on("messageCreate", async (message) => {
                 balatro: "🎰",
             };
             embed.addFields({
-                name: `${gameEmoji[game.game_type] || "🎮"} ${
-                    game.game_type.charAt(0).toUpperCase() +
+                name: `${gameEmoji[game.game_type] || "🎮"} ${game.game_type.charAt(0).toUpperCase() +
                     game.game_type.slice(1)
-                }`,
-                value: `**${game.total_games}** games played\n**${
-                    game.unique_players
-                }** unique players${
-                    game.avg_duration
+                    }`,
+                value: `**${game.total_games}** games played\n**${game.unique_players
+                    }** unique players${game.avg_duration
                         ? `\n**${Math.round(game.avg_duration)}s** avg duration`
                         : ""
-                }`,
+                    }`,
                 inline: true,
             });
         });
@@ -1719,10 +1771,10 @@ client.on("messageCreate", async (message) => {
                             index === 0
                                 ? "🥇"
                                 : index === 1
-                                ? "🥈"
-                                : index === 2
-                                ? "🥉"
-                                : `${index + 1}.`;
+                                    ? "🥈"
+                                    : index === 2
+                                        ? "🥉"
+                                        : `${index + 1}.`;
                         return `${medal} **${player.username}** - ${player.wins} wins (${player.win_rate}% win rate, ${player.total_games} games)`;
                     })
                     .join("\n")
@@ -1784,8 +1836,7 @@ client.on("messageCreate", async (message) => {
 
         const enabled = await autoReply.toggle(message.guild?.id);
         message.reply(
-            `Auto-reply to "cowsay" mentions is now ${
-                enabled ? "enabled" : "disabled"
+            `Auto-reply to "cowsay" mentions is now ${enabled ? "enabled" : "disabled"
             } for this server! 🐄`
         );
         return;
@@ -1829,38 +1880,34 @@ client.on("messageCreate", async (message) => {
             .addFields(
                 {
                     name: "Auto-Reply",
-                    value: `${
-                        autoReplyEnabled ? "✅ Enabled" : "❌ Disabled"
-                    }\nResponds to "cowsay" mentions`,
+                    value: `${autoReplyEnabled ? "✅ Enabled" : "❌ Disabled"
+                        }\nResponds to "cowsay" mentions`,
                     inline: true,
                 },
                 {
                     name: "Intent Detection",
-                    value: `${
-                        intentMode === "LLM"
-                            ? "🧠 LLM Mode"
-                            : intentMode === "EMBEDDING"
+                    value: `${intentMode === "LLM"
+                        ? "🧠 LLM Mode"
+                        : intentMode === "EMBEDDING"
                             ? "🔍 Embedding Mode"
                             : "⚙️ Regex Mode"
-                    }\nDetects conversation continuations`,
+                        }\nDetects conversation continuations`,
                     inline: true,
                 },
                 {
                     name: "Rivals System",
-                    value: `${
-                        rivals.length > 0
-                            ? `🔥 ${rivals.length} rival(s) configured`
-                            : "❌ No rivals configured"
-                    }\nCompetitive bot interactions`,
+                    value: `${rivals.length > 0
+                        ? `🔥 ${rivals.length} rival(s) configured`
+                        : "❌ No rivals configured"
+                        }\nCompetitive bot interactions`,
                     inline: true,
                 },
                 {
                     name: "Permission System",
-                    value: `${
-                        roleMappings.size > 0
-                            ? `🔐 ${roleMappings.size} custom role mapping(s)`
-                            : "🔐 Using Discord defaults"
-                    }\nRole-based access control`,
+                    value: `${roleMappings.size > 0
+                        ? `🔐 ${roleMappings.size} custom role mapping(s)`
+                        : "🔐 Using Discord defaults"
+                        }\nRole-based access control`,
                     inline: true,
                 },
                 {
@@ -2237,7 +2284,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                 const messages = [
                     llmService.buildSystemMessage(
                         (await commandHandler.getSystemPrompt(msg.guild?.id)) +
-                            " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."
+                        " Someone mentioned 'cowsay' in their message. Respond naturally as if they called your attention."
                     ),
                     ...context,
                     llmService.buildUserMessage(
@@ -2319,7 +2366,7 @@ responseCollapse.setProcessor(async (collapsedMessages) => {
                     (await commandHandler.getSystemPrompt(
                         firstMessage.guild?.id
                     )) +
-                        " Multiple people are talking to you at once. Address all their messages in one response."
+                    " Multiple people are talking to you at once. Address all their messages in one response."
                 ),
                 ...context,
                 { role: "user", content: allContent },

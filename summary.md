@@ -9,6 +9,9 @@
 - User values security - SQL injection, XSS, crypto-secure random are priorities
 - Test files exist - update CI workflows when adding new games
 - Database schema versioning is important - current v13 (removed unused channel_threads table)
+- **New Games Added**: Hangman (word guessing with betting), Baccarat (Punto Banco casino game), UNO Express (fast multiplayer card game)
+- **Game Flow Pattern**: Public displays with ephemeral interactions for private actions - no DMs
+- **Channel-based Games**: Roulette, Baccarat, UNO Express use channel-based lookup instead of user-based
 - Roulette currency fix pattern: award winnings separately from net result logic
 - **Unified Game System**: Created comprehensive unified modules (baseGame.js, gameUI.js, gameRewards.js) to eliminate ~90% code duplication across games
 - **Custom Bet Modal System**: Implemented TextInput modal functionality for custom bet amounts with memory-based callback system
@@ -78,6 +81,9 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
   - **balatro.js**: Poker scoring game with MySQL persistence and parameterized queries
   - **pong.js**: 2-player ASCII paddle game with XSS protection
   - **tictactoe.js**: Basic 2-player grid game
+  - **hangman.js**: Word guessing game with betting system and ASCII hangman display
+  - **baccarat.js**: Punto Banco casino game with 60-second betting phases
+  - **unoexpress.js**: Fast-paced multiplayer card game (2-6 players)
 
 #### Enhanced Utilities
 - **characterManager.js**: Loads ASCII art characters from files
@@ -139,6 +145,30 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **AI Logic**: Simple ball tracking with 1-pixel movement per update
 - **Rendering**: ASCII art with boundaries, paddles, ball
 - **Statistics**: Win/loss tracking, game duration, AI vs human performance
+
+### Hangman
+- **Word Pool**: 48 common words (4-7 letters)
+- **Lives System**: 6 wrong guesses maximum
+- **Betting**: 10-500 coins with 2x/3x payouts
+- **Display**: ASCII hangman progression + positional word display
+- **Interface**: A-Y letter buttons (25 letters, Discord limit)
+- **Rewards**: 2x bet (win), 3x bet (perfect), 5 coins (participation)
+
+### Baccarat
+- **Game Type**: Punto Banco (Player vs Banker)
+- **Betting Phase**: 60-second countdown with live updates
+- **Bet Types**: Player (2:1), Banker (1.95:1), Tie (9:1)
+- **Automatic Dealing**: Third card rules applied automatically
+- **Multi-betting**: Players can bet on multiple outcomes
+- **Public Display**: Everyone sees betting totals and results
+
+### UNO Express
+- **Players**: 2-6 multiplayer lobby system
+- **Cards**: 7 to start (faster than regular UNO)
+- **Deck**: Numbers, Skip, Wild, Express Wild (simplified)
+- **Interface**: Public game board + ephemeral hand management
+- **Turn Control**: Only current player can act
+- **Victory**: First to empty hand wins
 
 ## Technical Details
 
@@ -252,12 +282,21 @@ Enterprise-grade Discord bot built with Node.js and Discord.js v14. Primary func
 - **Modal Integration**: Fixed multiple technical issues with modal ID matching and interaction handling
 - **Ephemeral Auto-Updates**: Comprehensive timeout management system with automatic hand updates, 13/14-minute expiry warnings, and bulletproof cleanup
 
+### Phase 9: New Game Implementations (COMPLETE)
+- **Hangman Game**: Word guessing with betting system, ASCII hangman display, positional letter feedback
+- **Baccarat Implementation**: Punto Banco with 60-second betting phases, automatic dealing, multi-betting support
+- **UNO Express**: Fast multiplayer card game with lobby system, turn-based gameplay, ephemeral hand management
+- **Game Flow Standardization**: Established pattern of public displays with ephemeral private interactions
+- **Channel-based Games**: Implemented proper channel-based game lookup for multiplayer games
+- **Command Integration**: Added !hangman, !baccarat, !unoexpress commands with full help system integration
+
 ## Future Enhancements
 
-### Phase 9: Planned Features
+### Phase 10: Planned Features
 - **Complete Index.js Refactor**: Move remaining commands to modular architecture
 - **Enhanced Error Recovery**: Implement game state recovery mechanisms
 - **Performance Monitoring**: Add metrics and monitoring for system health
+- **UNO Express Fixes**: Fix main board updates, turn control, and ephemeral interaction handling
 - **New Games**: Rock-Paper-Scissors, Dice Roll, Coin Flip (using unified system)
 - **Advanced Social Features**: Trading system, teams, guilds
 - **Tournament System**: Organized competitions with brackets and prizes

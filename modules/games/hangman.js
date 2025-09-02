@@ -1,20 +1,22 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require("discord.js");
+const {
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    MessageFlags,
+} = require("discord.js");
 const BaseGame = require("./baseGame");
 const gameUI = require("./gameUI");
 const gameRewards = require("./gameRewards");
 const currencyManager = require("../currencyManager");
+const fs = require("fs");
 
 class Hangman extends BaseGame {
     constructor() {
         super("hangman");
-        this.words = [
-            "APPLE", "BEACH", "CHAIR", "DANCE", "EAGLE", "FLAME", "GRAPE", "HOUSE",
-            "JUICE", "KNIFE", "LIGHT", "MOUSE", "NIGHT", "OCEAN", "PIANO", "QUEEN",
-            "RIVER", "SNAKE", "TIGER", "UNCLE", "VOICE", "WATER", "YOUTH", "ZEBRA",
-            "BREAD", "CLOUD", "DREAM", "EARTH", "FIELD", "GHOST", "HEART", "IMAGE",
-            "MAGIC", "PAPER", "QUICK", "ROUND", "SMILE", "TRUTH", "WORLD", "YOUNG",
-            "BRAVE", "CLEAN", "FRESH", "HAPPY", "LUCKY", "PEACE", "SMART", "SWEET"
-        ];
+        this.words = fs
+            .readFileSync("/var/www/richard/projects/Cowsay/words.txt", "utf-8")
+            .split("\n");
         this.hangmanStages = [
             "```\n  +---+\n  |   |\n      |\n      |\n      |\n      |\n=========\n```",
             "```\n  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=========\n```",
@@ -22,18 +24,23 @@ class Hangman extends BaseGame {
             "```\n  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=========\n```",
             "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=========\n```",
             "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========\n```",
-            "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========\n```"
+            "```\n  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========\n```",
         ];
     }
 
     async start(message) {
         const embed = new EmbedBuilder()
             .setTitle("🎯 Hangman")
-            .setDescription("Guess the word letter by letter! Choose your bet amount to start.")
+            .setDescription(
+                "Guess the word letter by letter! Choose your bet amount to start."
+            )
             .setColor(0x00ae86);
 
         await gameUI.requestBetAmount(
-            { user: message.author, reply: async (options) => await message.reply(options) },
+            {
+                user: message.author,
+                reply: async (options) => await message.reply(options),
+            },
             this.handleBetPlaced.bind(this),
             { message },
             {
@@ -41,13 +48,17 @@ class Hangman extends BaseGame {
                 description: "Choose your bet amount:",
                 amounts: [10, 25, 50, 100],
                 minBet: 10,
-                updateOriginal: false
+                updateOriginal: false,
             }
         );
 
         return {
             gameKey: `hangman_setup_${message.author.id}`,
-            gameData: { type: "hangman", phase: "betting", creator: message.author.id }
+            gameData: {
+                type: "hangman",
+                phase: "betting",
+                creator: message.author.id,
+            },
         };
     }
 
@@ -64,21 +75,28 @@ class Hangman extends BaseGame {
         if (!canAfford) {
             await interaction.reply({
                 content: "❌ You don't have enough coins for this bet!",
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
 
-        const word = this.words[Math.floor(Math.random() * this.words.length)];
-        const gameData = this.createBaseGameData(message.author, message.guild?.id, {
-            phase: "playing",
-            word: word,
-            guessedLetters: [],
-            wrongGuesses: 0,
-            maxWrong: 6,
-            betAmount: betAmount,
-            channelId: message.channel.id
-        });
+        const word =
+            this.words[
+                Math.floor(Math.random() * this.words.length)
+            ].toUpperCase();
+        const gameData = this.createBaseGameData(
+            message.author,
+            message.guild?.id,
+            {
+                phase: "playing",
+                word: word,
+                guessedLetters: [],
+                wrongGuesses: 0,
+                maxWrong: 6,
+                betAmount: betAmount,
+                channelId: message.channel.id,
+            }
+        );
 
         const gameKey = `hangman_${userId}`;
         const gameManager = require("../gameManager");
@@ -89,7 +107,7 @@ class Hangman extends BaseGame {
 
         await interaction.update({
             embeds: [embed],
-            components: buttons
+            components: buttons,
         });
         return true;
     }
@@ -103,7 +121,7 @@ class Hangman extends BaseGame {
         if (!gameData || !gameData.guessedLetters) {
             await interaction.reply({
                 content: "Game not found!",
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -111,7 +129,7 @@ class Hangman extends BaseGame {
         if (gameData.creator !== userId) {
             await interaction.reply({
                 content: "This isn't your game!",
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -119,7 +137,7 @@ class Hangman extends BaseGame {
         if (gameData.guessedLetters.includes(letter)) {
             await interaction.reply({
                 content: "You already guessed that letter!",
-                flags: MessageFlags.Ephemeral
+                flags: MessageFlags.Ephemeral,
             });
             return true;
         }
@@ -130,12 +148,20 @@ class Hangman extends BaseGame {
             gameData.wrongGuesses++;
         }
 
-        const isWin = gameData.word.split("").every(l => gameData.guessedLetters.includes(l));
+        const isWin = gameData.word
+            .split("")
+            .every((l) => gameData.guessedLetters.includes(l));
         const isLose = gameData.wrongGuesses >= gameData.maxWrong;
 
         if (isWin || isLose) {
             gameData.phase = "ended";
-            await this.endGame(interaction, gameData, gameKey, gameManager, isWin);
+            await this.endGame(
+                interaction,
+                gameData,
+                gameKey,
+                gameManager,
+                isWin
+            );
         } else {
             const embed = this.createGameEmbed(gameData);
             const buttons = this.createLetterButtons(gameData);
@@ -151,11 +177,15 @@ class Hangman extends BaseGame {
 
         if (isWin) {
             const isPerfect = gameData.wrongGuesses === 0;
-            payout = isPerfect ? gameData.betAmount * 3 : gameData.betAmount * 2;
+            payout = isPerfect
+                ? gameData.betAmount * 3
+                : gameData.betAmount * 2;
             await currencyManager.addBalance(gameData.creator, payout);
-            
+
             const profit = payout - gameData.betAmount;
-            resultText = `🎉 You won! +${profit} coins${isPerfect ? " (Perfect game bonus!)" : ""}`;
+            resultText = `🎉 You won! +${profit} coins${
+                isPerfect ? " (Perfect game bonus!)" : ""
+            }`;
         } else {
             resultText = `💀 You lost! The word was **${gameData.word}**. -${gameData.betAmount} coins`;
         }
@@ -164,55 +194,70 @@ class Hangman extends BaseGame {
             .addFields({
                 name: "🎊 Game Result",
                 value: resultText,
-                inline: false
+                inline: false,
             })
             .setColor(isWin ? 0x00ff00 : 0xff0000);
 
         await interaction.update({ embeds: [embed], components: [] });
 
-        this.recordGameOutcome(gameData, isWin ? gameData.creator : "ai_player", {
-            player1_id: gameData.creator,
-            player1_name: gameData.creatorName,
-            player2_id: "ai_player",
-            player2_name: "Hangman",
-            final_score: {
-                word: gameData.word,
-                wrong_guesses: gameData.wrongGuesses,
-                bet_amount: gameData.betAmount,
-                perfect: gameData.wrongGuesses === 0
-            },
-            game_mode: "single"
-        });
+        this.recordGameOutcome(
+            gameData,
+            isWin ? gameData.creator : "ai_player",
+            {
+                player1_id: gameData.creator,
+                player1_name: gameData.creatorName,
+                player2_id: "ai_player",
+                player2_name: "Hangman",
+                final_score: {
+                    word: gameData.word,
+                    wrong_guesses: gameData.wrongGuesses,
+                    bet_amount: gameData.betAmount,
+                    perfect: gameData.wrongGuesses === 0,
+                },
+                game_mode: "single",
+            }
+        );
 
         gameManager.deleteGame(gameKey);
     }
 
     createGameEmbed(gameData, showWord = false) {
-        const word = this.renderWordProgress(gameData.word, gameData.guessedLetters, showWord);
-        const wrongLetters = gameData.guessedLetters.filter(l => !gameData.word.includes(l));
-        
+        const word = this.renderWordProgress(
+            gameData.word,
+            gameData.guessedLetters,
+            showWord
+        );
+        const wrongLetters = gameData.guessedLetters.filter(
+            (l) => !gameData.word.includes(l)
+        );
+
         return new EmbedBuilder()
             .setTitle("🎯 Hangman")
             .setDescription(
                 `${this.hangmanStages[gameData.wrongGuesses]}\n` +
-                `**Word:** \`${word}\`\n` +
-                `**Wrong letters:** ${wrongLetters.join(", ") || "None"}\n` +
-                `**Remaining guesses:** ${gameData.maxWrong - gameData.wrongGuesses}`
+                    `**Word:** \`${word}\`\n` +
+                    `**Wrong letters:** ${
+                        wrongLetters.join(", ") || "None"
+                    }\n` +
+                    `**Remaining guesses:** ${
+                        gameData.maxWrong - gameData.wrongGuesses
+                    }`
             )
             .setColor(0x00ae86);
     }
 
     renderWordProgress(word, guessedLetters, showAll = false) {
         if (showAll) return word.split("").join(" ");
-        return word.split("").map(letter => 
-            guessedLetters.includes(letter) ? letter : "_"
-        ).join(" ");
+        return word
+            .split("")
+            .map((letter) => (guessedLetters.includes(letter) ? letter : "_"))
+            .join(" ");
     }
 
     createLetterButtons(gameData) {
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         const buttons = [];
-        
+
         // Create 5 rows with 5 letters each (25 letters), skip Z to fit Discord limits
         for (let i = 0; i < 25; i += 5) {
             const row = new ActionRowBuilder();
@@ -228,7 +273,7 @@ class Hangman extends BaseGame {
             }
             buttons.push(row);
         }
-        
+
         return buttons;
     }
 }
